@@ -72,12 +72,12 @@ static struct Menu MENU = {
         MENU_ITEM(AUTO_INC_CHAR, "MLCommons Tiny V0.1 Visual Wake Words",
                   mlcommons_tiny_v01_vww_menu),
 #endif
+#if defined(INCLUDE_MODEL_DS_CNN_STREAM_FE)
+        MENU_ITEM(AUTO_INC_CHAR, "Ds cnn stream fe", ds_cnn_stream_fe_menu),
+#endif
 #if AUTO_INC_CHAR == STARTING_SEL_CHAR
         MENU_ITEM('!', "No models selected! Check defines in Makefile!",
                   no_menu),
-#endif
-#if defined(INCLUDE_MODEL_DS_CNN_STREAM_FE)
-        MENU_ITEM(AUTO_INC_CHAR, "Ds cnn stream fe", ds_cnn_stream_fe_menu),
 #endif
 
         MENU_END,
