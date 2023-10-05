@@ -1,0 +1,18 @@
+
+  padding_type, padding_width, padding_height, padding_width_offset,
+  padding_height_offset, stride_width, stride_height,
+  dilation_width_factor, dilation_height_factor, input_offset,
+  weights_offset, output_offset, output_multiplier, output_shift,
+  quantized_activation_min, quantized_activation_max,
+  input_batches, input_height, input_width, input_depth,
+  filter_output_depth, filter_height, filter_width, filter_input_depth,
+  output_batches, output_height, output_width, output_depth,
+
+0       1  2  3  4  5  6  7  8  9    10  11    12 13  14   15  16  17 18  19  20  21  22 23 24 25     26   27
+kValid, 0, 0, 0, 1, 1, 1, 1, 2, -102, 0, -128, 0, 0, -128, 127, 1, 49, 20, 1, 300, 3, 3, 1, 1, 45,    18, 300, 
+kValid, 0, 0, 0, 1, 1, 1, 1, 1, 128, 0, -128, 0, 0, -128, 127, 1, 43, 16, 300, 300, 1, 1, 300, 1, 43, 16, 300, 
+kValid, 0, 0, 0, 1, 1, 1, 1, 1, 128, 0, -128, 0, 0, -128, 127, 1, 39, 12, 300, 300, 1, 1, 300, 1, 39, 12, 300, 
+kValid, 0, 0, 0, 1, 1, 1, 1, 1, 128, 0, -128, 0, 0, -128, 127, 1, 30, 10, 300, 300, 1, 1, 300, 1, 30, 10, 300, 
+kValid, 0, 0, 0, 1, 1, 1, 1, 1, 128, 0, -128, 0, 0, -128, 127, 1, 22, 6, 300, 300, 1, 1, 300, 1, 22,  6,  300, 
+kValid, 0, 0, 0, 1, 1, 1, 1, 1, 128, 0, -128, 0, 0, -128, 127, 1, 13, 4, 300, 300, 1, 1, 300, 1, 13,  4,  300, 
+

@@ -108,7 +108,7 @@ constexpr int kTensorArenaSize = const_max<int>(
     99 * 1024,
 #endif
 #ifdef INCLUDE_MODEL_DS_CNN_STREAM_FE
-    12000 * 1024, // This is the custom value I set.
+    5000 * 1024, // This is the custom value I set.
 #endif
 
     0 /* When no models defined, we don't need a tensor arena. */
