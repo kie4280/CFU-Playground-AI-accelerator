@@ -23,6 +23,10 @@ limitations under the License.
 #include "playground_util/print_params.h"
 #include "tensorflow/lite/kernels/internal/common.h"
 #include "tensorflow/lite/kernels/internal/portable_tensor_utils.h"
+#include "perf.h"
+#include "models/my_cycles.h"
+
+extern long long unsigned my_cycles;
 
 namespace tflite {
 namespace reference_integer_ops {
@@ -45,7 +49,7 @@ inline void ConvPerChannel(
   // "filter_output_depth", "filter_height", "filter_width",
   // "filter_input_depth", "output_batches", "output_height", "output_width",
   // "output_depth",
-  print_conv_params(params, input_shape, filter_shape, output_shape);
+  // print_conv_params(params, input_shape, filter_shape, output_shape);
 
   // Get parameters.
   const int32_t input_offset = params.input_offset;  // r = s(q - Z)
@@ -107,6 +111,7 @@ inline void ConvPerChannel(
               if (!is_point_inside_image) {
                 continue;
               }
+              unsigned my_start = perf_get_mcycle();
               int in_channel = 0;
               for (; in_channel <= filter_input_depth - 4; in_channel += 4) {
                 // printf("start loop\n");
@@ -146,6 +151,9 @@ inline void ConvPerChannel(
                     filter_shape, out_channel, filter_y, filter_x, in_channel)];
                 acc += filter_val * (input_val + input_offset);
               }
+
+              unsigned my_finish = perf_get_mcycle();
+              my_cycles += (my_finish - my_start);
             }
           }
 
@@ -190,6 +198,7 @@ inline void ConvPerChannel(
     const int8_t* filter_data, const RuntimeShape& bias_shape,
     const AccumScalar* bias_data, const RuntimeShape& output_shape,
     int16_t* output_data) {
+  printf("template called\n");
   // Get parameters.
   const int stride_width = params.stride_width;
   const int stride_height = params.stride_height;
