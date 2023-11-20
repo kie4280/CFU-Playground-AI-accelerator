@@ -110,7 +110,7 @@ inline void ConvPerChannel(
   for (int batch = 0; batch < batches; ++batch) {
     int32_t unrolled_input[100 * 100 * 400];
     int32_t unrolled_output[100 * 100 * 400];
-    int32_t unrolled_weight[60*60*400];
+    int32_t unrolled_weight[60 * 60 * 400];
     int input_h = output_height * output_width;
     // int input_w = filter_height * filter_width * filter_input_depth;
     int weight_h = output_depth;
@@ -137,19 +137,16 @@ inline void ConvPerChannel(
             //   continue;
             // }
 
-            unsigned my_start = perf_get_mcycle();
             for (int in_channel = 0; in_channel < filter_input_depth;
                  ++in_channel) {
               int32_t input_val = 0;
               if (is_point_inside_image) {
                 input_val = input_data[Offset(input_shape, batch, in_y, in_x,
-                                              in_channel)] + input_offset;
+                                              in_channel)] +
+                            input_offset;
               }
-              // acc += filter_val * (input_val + input_offset);
               unrolled_input[input_counter++] = input_val;
             }
-            unsigned my_finish = perf_get_mcycle();
-            my_cycles += (my_finish - my_start);
           }
         }
       }
@@ -166,31 +163,18 @@ inline void ConvPerChannel(
                ++in_channel) {
             int32_t filter_val = filter_data[Offset(
                 filter_shape, out_channel, filter_y, filter_x, in_channel)];
-            // Accumulate with 32 bits accumulator.
-            // In the nudging process during model quantization, we force
-            // real value of 0.0 be represented by a quantized value. This
-            // guarantees that the input_offset is a int8_t, even though
-            // it is represented using int32_t. int32_t += int8_t *
-            // (int8_t - int8_t) so the highest value we can get from each
-            // accumulation is [-127, 127] * ([-128, 127] -
-            // [-128, 127]), which is [-32512, 32512]. log2(32512)
-            // = 14.98, which means we can accumulate at least 2^16
-            // multiplications without overflow. The accumulator is
-            // applied to a filter so the accumulation logic will hold as
-            // long as the filter size (filter_y * filter_x * in_channel)
-            // does not exceed 2^16, which is the case in all the models
-            // we have seen so far.
-            // TODO(b/174275578): Add a check to make sure the
-            // accumulator depth is smaller than 2^16.
             unrolled_weight[weight_counter++] = filter_val;
           }
         }
       }
     }
 
+    unsigned my_start = perf_get_mcycle();
     // doing the conv using matrix multiply
     matrixMult(unrolled_output, unrolled_weight, unrolled_input, weight_h,
                weight_w, input_h);
+    unsigned my_finish = perf_get_mcycle();
+    my_cycles += (my_finish - my_start);
 
     // output write back
     for (int out_channel = 0; out_channel < output_depth; ++out_channel) {
