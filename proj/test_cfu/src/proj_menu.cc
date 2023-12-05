@@ -45,19 +45,6 @@ void do_grid_cfu_op0(void) {
   }
 }
 
-void do_simple_add(void) {
-  printf("\nsimple add to test interface\n");
-  int a=10, b=10;
-  int cfu = cfu_op0(1, a, b);
-  printf("%8d\n", cfu);
-}
-
-void zero(void) {
-  printf("\nzero the counter\n");
-  int cfu = cfu_op0(0, 0, 0);
-  printf("%8d\n", cfu);
-}
-
 // Test template instruction
 void do_exercise_cfu_op0(void) {
   puts("\nExercise CFU Op0\n");
@@ -83,9 +70,6 @@ struct Menu MENU = {
         MENU_ITEM('0', "exercise cfu op0", do_exercise_cfu_op0),
         MENU_ITEM('g', "grid cfu op0", do_grid_cfu_op0),
         MENU_ITEM('h', "say Hello", do_hello_world),
-
-        MENU_ITEM('a', "add counter", do_simple_add),
-        MENU_ITEM('z', "zero counter", zero),
         MENU_END,
     },
 };

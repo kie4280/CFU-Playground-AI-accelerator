@@ -1,4 +1,4 @@
-`include "systolic.v"
+`include "/home/kie/MyProjects/aaml/CFU-Playground/proj/lab5/RTL/systolic.v"
 
 module TPU(
   input clk,
