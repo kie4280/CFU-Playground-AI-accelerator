@@ -30,7 +30,7 @@ module global_buffer #(parameter ADDR_BITS=8, parameter DATA_BITS=8)
   always @ (posedge clk or posedge rst) begin
     if(rst)begin
       for(i=0; i<(DEPTH); i=i+1)
-        gbuff[i] = 0;
+        gbuff[i] = i+1;
     end
     else begin
       if(wr_en) begin

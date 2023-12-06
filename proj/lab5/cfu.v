@@ -127,7 +127,7 @@ module Cfu (
   reg [6:0]  funct_id;
   reg [2:0]  opcode;
 
-  always @(posedge reset, posedge cmd_valid) begin
+  always @(posedge reset, posedge cmd_valid, posedge clk) begin
     if (reset) begin
       cmd_inputs_0 = 32'b0;
       cmd_inputs_1 = 32'b0;
@@ -152,6 +152,7 @@ module Cfu (
 
   localparam STATE_IDLE = 0;
   localparam STATE_EXEC = 1;
+  localparam STATE_READ_MEM = 2;
   localparam STATE_RSP_READY = 7;
 
   localparam OP_RESET = 0;
@@ -177,7 +178,8 @@ module Cfu (
     case (cur_state)
       STATE_IDLE: begin
         if (cmd_ready && cmd_valid) begin
-          if (opcode == OP_COMPUTE || opcode == OP_READ_MEM) next_state = STATE_EXEC;
+          if (opcode == OP_COMPUTE) next_state = STATE_EXEC;
+          else if (opcode == OP_READ_MEM) next_state = STATE_READ_MEM;
           else next_state = STATE_RSP_READY;
         end
         else next_state = STATE_IDLE;
@@ -188,6 +190,10 @@ module Cfu (
         next_state = STATE_RSP_READY;
         rsp_valid = 0;
 
+      end
+      STATE_READ_MEM: begin
+        next_state = STATE_RSP_READY;
+        rsp_valid = 0;
       end
       STATE_RSP_READY: begin
         rsp_valid = 1;
@@ -206,10 +212,18 @@ module Cfu (
   assign B_index_w = cur_state == STATE_EXEC ? B_index_TPU: B_index_CFU;
   assign C_index_w = cur_state == STATE_EXEC ? C_index_TPU: C_index_CFU;
 
+  always @(*) begin
+    if (opcode == OP_READ_MEM) begin
+      rsp_payload_outputs_0 = C_data_out;
+    end
+    else begin
+      rsp_payload_outputs_0 = 0;
+    end
+  end
+
   always @(posedge reset, posedge clk) begin
     case (cur_state)
       STATE_IDLE: begin
-        rsp_payload_outputs_0 <= 32'b0;
         A_wr_en <= 0;
         B_wr_en <= 0;
         if (funct_id[5] == 0) begin
@@ -222,12 +236,9 @@ module Cfu (
 
       end
       STATE_EXEC: begin
-        if (opcode == OP_COMPUTE) begin
 
-        end
-        else if (opcode == OP_READ_MEM) begin
-          rsp_payload_outputs_0 <= C_data_out;
-        end
+      end
+      STATE_READ_MEM: begin
 
       end
       STATE_RSP_READY: begin
@@ -236,12 +247,10 @@ module Cfu (
           else B_wr_en <= 1;
           C_data_in <= cmd_inputs_1;
         end
-        else begin
-          rsp_payload_outputs_0 <= 0;
-        end
       end
 
       default:;
     endcase
   end
+
 endmodule

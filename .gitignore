@@ -74,6 +74,7 @@ soc/prog
 # cfu.v, if present, must be added explicitly
 proj/*/cfu.v
 !proj/lab2/cfu.v
+!proj/lab5/cfu.v
 
 build
 csr.csv
