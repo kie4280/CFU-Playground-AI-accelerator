@@ -5,17 +5,17 @@
 // authors: kaikai (deekai9139@gmail.com)                                     //
 //          suhan  (jjs93126@gmail.com)                                       //
 //============================================================================//
-module global_buffer #(parameter ADDR_BITS=8, parameter DATA_BITS=8)(clk, rst, wr_en, index, data_in, data_out);
-
-  input clk;
-  input rst;
-  input wr_en; // Write enable: 1->write 0->read
-  input      [ADDR_BITS-1:0] index;
-  input      [DATA_BITS-1:0]       data_in;
-  output reg [DATA_BITS-1:0]       data_out;
+module global_buffer #(parameter ADDR_BITS=8, parameter DATA_BITS=8)
+(
+  input clk,
+  input rst,
+  input wr_en, // Write enable: 1->write 0->read
+  input      [ADDR_BITS-1:0] index,
+  input      [DATA_BITS-1:0]       data_in,
+  output reg [DATA_BITS-1:0]       data_out
+);
 
   integer i;
-
   parameter DEPTH = 2**ADDR_BITS;
 
 //----------------------------------------------------------------------------//
@@ -27,10 +27,10 @@ module global_buffer #(parameter ADDR_BITS=8, parameter DATA_BITS=8)(clk, rst, w
 //----------------------------------------------------------------------------//
 // Global buffer read write behavior                                          //
 //----------------------------------------------------------------------------//
-  always @ (posedge clk or posedge rst_n) begin
+  always @ (posedge clk or posedge rst) begin
     if(rst)begin
       for(i=0; i<(DEPTH); i=i+1)
-        gbuff[i] <= 'd0;
+        gbuff[i] = 0;
     end
     else begin
       if(wr_en) begin

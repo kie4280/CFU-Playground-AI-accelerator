@@ -76,6 +76,17 @@ void do_exercise_cfu_op0(void) {
   printf("Performed %d comparisons", count);
 }
 
+void matmul(void) {
+  printf("\nmatrix multiply\n");
+  cfu_op0(0, 0, 0);           // reset the cfu
+  cfu_op1(0, 0, 16);          // write A[0]
+  cfu_op1(1<<5, 0, 5);        // write B[0]
+  cfu_op2(0, 1, (1<<8) + 1);
+  int r = cfu_op3(0, 0, 0);
+  printf("results: %d", r);
+
+}
+
 struct Menu MENU = {
     "Project Menu",
     "project",
@@ -86,6 +97,7 @@ struct Menu MENU = {
 
         MENU_ITEM('a', "add counter", do_simple_add),
         MENU_ITEM('z', "zero counter", zero),
+        MENU_ITEM('m', "matrix multiply", matmul),
         MENU_END,
     },
 };
