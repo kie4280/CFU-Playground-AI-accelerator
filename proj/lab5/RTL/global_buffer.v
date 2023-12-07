@@ -15,7 +15,6 @@ module global_buffer #(parameter ADDR_BITS=8, parameter DATA_BITS=8)
   output reg [DATA_BITS-1:0]       data_out
 );
 
-  integer i;
   parameter DEPTH = 2**ADDR_BITS;
 
 //----------------------------------------------------------------------------//
@@ -27,18 +26,12 @@ module global_buffer #(parameter ADDR_BITS=8, parameter DATA_BITS=8)
 //----------------------------------------------------------------------------//
 // Global buffer read write behavior                                          //
 //----------------------------------------------------------------------------//
-  always @ (posedge clk or posedge rst) begin
-    if(rst)begin
-      for(i=0; i<(DEPTH); i=i+1)
-        gbuff[i] = i+1;
+  always @ (posedge clk) begin
+    if(wr_en) begin
+      gbuff[index] <= data_in;
     end
     else begin
-      if(wr_en) begin
-        gbuff[index] <= data_in;
-      end
-      else begin
-        data_out <= gbuff[index];
-      end
+      data_out <= gbuff[index];
     end
   end
 

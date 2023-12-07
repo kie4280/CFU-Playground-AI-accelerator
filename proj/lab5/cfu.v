@@ -32,23 +32,23 @@ module Cfu (
 
   reg             A_wr_en;
   wire [15:0]     A_index_w;
+  wire [31:0]     A_data_out;
   reg  [31:0]     A_data_in;
-  reg  [31:0]     A_data_out;
 
   reg             B_wr_en;
   wire [15:0]     B_index_w;
+  wire [31:0]     B_data_out;
   reg  [31:0]     B_data_in;
-  reg  [31:0]     B_data_out;
 
   wire            C_wr_en;
   wire [15:0]     C_index_w;
+  wire [127:0]    C_data_out;
   reg  [127:0]    C_data_in;
-  reg  [127:0]    C_data_out;
 
   reg             in_valid;
-  reg  [7:0]      K;
-  reg  [7:0]      M;
-  reg  [7:0]      N;
+  wire [7:0]      M;
+  wire [7:0]      K;
+  wire [7:0]      N;
   reg             busy = 0;
 
   reg  [15:0]     A_index_CFU;
@@ -59,13 +59,16 @@ module Cfu (
   wire [15:0]     B_index_TPU;
   wire [15:0]     C_index_TPU;
 
+  assign M = cmd_inputs_0[15:0];
+  assign K = cmd_inputs_1[31:16];
+  assign N = cmd_inputs_1[15:0];
 
   // TPU my_tpu(
   //   .clk(clk),
   //   .rst_n(~reset),
   //   .in_valid(in_valid),
-  //   .K(K),
   //   .M(M),
+  //   .K(K),
   //   .N(N),
   //   .busy(busy),
   //   .A_wr_en(A_wr_en),
@@ -84,7 +87,7 @@ module Cfu (
   // );
 
   global_buffer #(
-      .ADDR_BITS(16),
+      .ADDR_BITS(12),
       .DATA_BITS(32)
   )
   gbuff_A(
@@ -97,7 +100,7 @@ module Cfu (
   );
 
   global_buffer #(
-      .ADDR_BITS(16),
+      .ADDR_BITS(12),
       .DATA_BITS(32)
   ) gbuff_B(
       .clk(clk),
@@ -110,7 +113,7 @@ module Cfu (
 
 
   global_buffer #(
-      .ADDR_BITS(16),
+      .ADDR_BITS(12),
       .DATA_BITS(128)
   ) gbuff_C(
       .clk(clk),
@@ -221,7 +224,7 @@ module Cfu (
     end
   end
 
-  always @(posedge reset, posedge clk) begin
+  always @(posedge clk) begin
     case (cur_state)
       STATE_IDLE: begin
         A_wr_en <= 0;
@@ -243,9 +246,14 @@ module Cfu (
       end
       STATE_RSP_READY: begin
         if (opcode == OP_WRITE_MEM) begin
-          if (funct_id[5] == 0) A_wr_en <= 1;
-          else B_wr_en <= 1;
-          C_data_in <= cmd_inputs_1;
+          if (funct_id[5] == 0) begin
+            A_wr_en <= 1;
+            A_data_in <= cmd_inputs_1;
+          end
+          else begin
+            B_wr_en <= 1;
+            B_data_in <= cmd_inputs_1;
+          end
         end
       end
 

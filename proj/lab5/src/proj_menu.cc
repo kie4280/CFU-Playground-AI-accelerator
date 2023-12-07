@@ -81,7 +81,7 @@ void matmul(void) {
   cfu_op0(0, 0, 0);           // reset the cfu
   cfu_op1(0, 3, 16);          // write A[0]
   cfu_op1(1<<5, 3, 5);        // write B[0]
-  cfu_op2(0, 1, (1<<8) + 1);
+  cfu_op2(0, 1, (1<<16) + 1);
   int r = cfu_op3(0, 24, 0);
   printf("results: %d\n", r);
 
