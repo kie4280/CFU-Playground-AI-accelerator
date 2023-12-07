@@ -125,29 +125,33 @@ module Cfu (
   );
 
 
-  reg [31:0] cmd_inputs_0;
-  reg [31:0] cmd_inputs_1;
-  reg [6:0]  funct_id;
-  reg [2:0]  opcode;
+  wire [6:0]  funct_id_w;
+  wire [2:0]  opcode_w;
 
-  always @(posedge reset, posedge cmd_valid, posedge clk) begin
+  reg [31:0] cmd_inputs_0 = 0;
+  reg [31:0] cmd_inputs_1 = 0;
+  reg [6:0]  funct_id = 0;
+  reg [2:0]  opcode = 0;
+
+  assign opcode_w = cmd_payload_function_id[2:0];
+  assign funct_id_w = cmd_payload_function_id[9:3];
+
+  always @(posedge clk) begin
     if (reset) begin
-      cmd_inputs_0 = 32'b0;
-      cmd_inputs_1 = 32'b0;
-      funct_id = 0;
-      opcode = 0;
+      cmd_inputs_0 <= 32'b0;
+      cmd_inputs_1 <= 32'b0;
     end
     else if (cmd_valid) begin
-      cmd_inputs_0 = cmd_payload_inputs_0;
-      cmd_inputs_1 = cmd_payload_inputs_1;
-      funct_id = cmd_payload_function_id[9:3];
-      opcode = cmd_payload_function_id[2:0];
+      cmd_inputs_0 <= cmd_payload_inputs_0;
+      cmd_inputs_1 <= cmd_payload_inputs_1;
+      funct_id <= cmd_payload_function_id[9:3];
+      opcode <= cmd_payload_function_id[2:0];
     end
     else begin
-      cmd_inputs_0 = cmd_inputs_0;
-      cmd_inputs_1 = cmd_inputs_1;
-      funct_id = funct_id;
-      opcode = opcode;
+      cmd_inputs_0 <= cmd_inputs_0;
+      cmd_inputs_1 <= cmd_inputs_1;
+      funct_id <= funct_id;
+      opcode <= opcode;
     end
   end
 
@@ -181,8 +185,8 @@ module Cfu (
     case (cur_state)
       STATE_IDLE: begin
         if (cmd_ready && cmd_valid) begin
-          if (opcode == OP_COMPUTE) next_state = STATE_EXEC;
-          else if (opcode == OP_READ_MEM) next_state = STATE_READ_MEM;
+          if (opcode_w == OP_COMPUTE) next_state = STATE_EXEC;
+          else if (opcode_w == OP_READ_MEM) next_state = STATE_READ_MEM;
           else next_state = STATE_RSP_READY;
         end
         else next_state = STATE_IDLE;
@@ -220,7 +224,7 @@ module Cfu (
       rsp_payload_outputs_0 = C_data_out;
     end
     else begin
-      rsp_payload_outputs_0 = 0;
+      rsp_payload_outputs_0 = 100+opcode;
     end
   end
 

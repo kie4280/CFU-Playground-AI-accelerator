@@ -49,13 +49,15 @@ void do_simple_add(void) {
   printf("\nsimple add to test interface\n");
   int a=10, b=10;
   int cfu = cfu_op0(1, a, b);
-  printf("%8d\n", cfu);
+  printf("%d\n", cfu);
 }
 
 void zero(void) {
   printf("\nzero the counter\n");
-  int cfu = cfu_op0(0, 0, 0);
-  printf("%8d\n", cfu);
+  int cfu = cfu_op1(0, 0, 0);
+  printf("%d\n", cfu);
+  cfu = cfu_op1(0, 0, 0);
+  printf("%d\n", cfu);
 }
 
 // Test template instruction
@@ -78,11 +80,14 @@ void do_exercise_cfu_op0(void) {
 
 void matmul(void) {
   printf("\nmatrix multiply\n");
-  cfu_op0(0, 0, 0);           // reset the cfu
-  cfu_op1(0, 3, 16);          // write A[0]
+  int r = cfu_op0(0, 0, 0);           // reset the cfu
+  printf("results: %d\n", r);
+  r = cfu_op1(0, 3, 16);          // write A[0]
+  printf("results: %d\n", r);
   cfu_op1(1<<5, 3, 5);        // write B[0]
-  cfu_op2(0, 1, (1<<16) + 1);
-  int r = cfu_op3(0, 24, 0);
+  r = cfu_op2(0, 1, (1<<16) + 1);
+  printf("results: %d\n", r);
+  r = cfu_op3(0, 24, 0);
   printf("results: %d\n", r);
 
 }
