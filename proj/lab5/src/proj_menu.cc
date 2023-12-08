@@ -54,10 +54,7 @@ void do_simple_add(void) {
 
 void zero(void) {
   printf("\nzero the counter\n");
-  int cfu = cfu_op1(0, 0, 0);
-  printf("%d\n", cfu);
-  cfu = cfu_op1(0, 0, 0);
-  printf("%d\n", cfu);
+  cfu_op0(0, 0, 0);
 }
 
 // Test template instruction
@@ -81,14 +78,21 @@ void do_exercise_cfu_op0(void) {
 void matmul(void) {
   printf("\nmatrix multiply\n");
   int r = cfu_op0(0, 0, 0);           // reset the cfu
-  printf("results: %d\n", r);
-  r = cfu_op1(0, 3, 16);          // write A[0]
-  printf("results: %d\n", r);
-  cfu_op1(1<<5, 3, 5);        // write B[0]
+  printf("opcode: %d\n", r);
+  r = cfu_op1(0, 0, 16);          // write A[0]
+  printf("opcode: %d\n", r);
+  r = cfu_op1(32, 0, 5);        // write B[0]
+  printf("opcode: %d\n", r);
   r = cfu_op2(0, 1, (1<<16) + 1);
-  printf("results: %d\n", r);
-  r = cfu_op3(0, 24, 0);
-  printf("results: %d\n", r);
+  printf("opcode: %d\n", r);
+  r = cfu_op3(0, 0, -1);
+  printf("result: %d\n", r);
+  r = cfu_op7(0, 0, 0);
+  printf("debug: %d\n", r);
+  r = cfu_op7(1, 0, 0);
+  printf("debug: %d\n", r);
+  r = cfu_op3(0, 0, 0);
+  printf("debug: %d\n", r);
 
 }
 

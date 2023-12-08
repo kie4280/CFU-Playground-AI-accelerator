@@ -1,5 +1,6 @@
 `timescale 1ns/10ps
 // `include "/home/kie/MyProjects/aaml/CFU-Playground/proj/lab5/RTL/TPU.v"
+// `include "/home/kie/MyProjects/aaml/CFU-Playground/proj/lab5/RTL/systolic.v"
 `include "/home/kie/MyProjects/aaml/CFU-Playground/proj/lab5/RTL/global_buffer.v"
 
 // Copyright 2021 The CFU-Playground Authors
@@ -63,7 +64,7 @@ module Cfu (
   assign K = cmd_inputs_1[31:16];
   assign N = cmd_inputs_1[15:0];
 
-  // TPU my_tpu(
+  // SystolicArray my_tpu(
   //   .clk(clk),
   //   .rst_n(~reset),
   //   .in_valid(in_valid),
@@ -85,6 +86,7 @@ module Cfu (
   //   .C_data_out(C_data_out)
 
   // );
+
 
   global_buffer #(
       .ADDR_BITS(12),
@@ -124,34 +126,31 @@ module Cfu (
       .data_out(C_data_out)
   );
 
+  wire [31:0] cmd_inputs_0;
+  wire [31:0] cmd_inputs_1;
+  wire [6:0]  funct_id;
+  wire [2:0]  opcode;
 
-  wire [6:0]  funct_id_w;
-  wire [2:0]  opcode_w;
+  reg [31:0] cmd_inputs_0_reg = 0;
+  reg [31:0] cmd_inputs_1_reg = 0;
+  reg [6:0]  funct_id_reg = 0;
+  reg [2:0]  opcode_reg = 0;
 
-  reg [31:0] cmd_inputs_0 = 0;
-  reg [31:0] cmd_inputs_1 = 0;
-  reg [6:0]  funct_id = 0;
-  reg [2:0]  opcode = 0;
+  assign opcode = cmd_valid ? cmd_payload_function_id[2:0]:opcode_reg;
+  assign funct_id = cmd_valid ? cmd_payload_function_id[9:3]:funct_id_reg;
+  assign cmd_inputs_0 = cmd_valid ? cmd_payload_inputs_0 : cmd_inputs_0_reg;
+  assign cmd_inputs_1 = cmd_valid ? cmd_payload_inputs_1 : cmd_inputs_1_reg;
 
-  assign opcode_w = cmd_payload_function_id[2:0];
-  assign funct_id_w = cmd_payload_function_id[9:3];
-
-  always @(posedge clk) begin
+  always @(posedge clk, posedge reset) begin
     if (reset) begin
-      cmd_inputs_0 <= 32'b0;
-      cmd_inputs_1 <= 32'b0;
+      cmd_inputs_0_reg <= 32'b0;
+      cmd_inputs_1_reg <= 32'b0;
     end
     else if (cmd_valid) begin
-      cmd_inputs_0 <= cmd_payload_inputs_0;
-      cmd_inputs_1 <= cmd_payload_inputs_1;
-      funct_id <= cmd_payload_function_id[9:3];
-      opcode <= cmd_payload_function_id[2:0];
-    end
-    else begin
-      cmd_inputs_0 <= cmd_inputs_0;
-      cmd_inputs_1 <= cmd_inputs_1;
-      funct_id <= funct_id;
-      opcode <= opcode;
+      cmd_inputs_0_reg <= cmd_payload_inputs_0;
+      cmd_inputs_1_reg <= cmd_payload_inputs_1;
+      funct_id_reg <= cmd_payload_function_id[9:3];
+      opcode_reg <= cmd_payload_function_id[2:0];
     end
   end
 
@@ -166,6 +165,7 @@ module Cfu (
   localparam OP_WRITE_MEM = 1;
   localparam OP_COMPUTE = 2;
   localparam OP_READ_MEM = 3;
+  localparam OP_DEBUG_OUT = 7;
 
   reg [2:0] cur_state = STATE_IDLE;
   reg [2:0] next_state = STATE_IDLE;
@@ -185,8 +185,8 @@ module Cfu (
     case (cur_state)
       STATE_IDLE: begin
         if (cmd_ready && cmd_valid) begin
-          if (opcode_w == OP_COMPUTE) next_state = STATE_EXEC;
-          else if (opcode_w == OP_READ_MEM) next_state = STATE_READ_MEM;
+          if (opcode == OP_COMPUTE) next_state = STATE_EXEC;
+          else if (opcode == OP_READ_MEM) next_state = STATE_READ_MEM;
           else next_state = STATE_RSP_READY;
         end
         else next_state = STATE_IDLE;
@@ -194,7 +194,8 @@ module Cfu (
 
       end
       STATE_EXEC: begin
-        next_state = STATE_RSP_READY;
+        if (counter >= 3) next_state = STATE_RSP_READY;
+        else next_state = STATE_EXEC;
         rsp_valid = 0;
 
       end
@@ -214,7 +215,7 @@ module Cfu (
 
   end
 
-  reg [31:0] counter;
+  reg [31:0] counter = 0;
   assign A_index_w = cur_state == STATE_EXEC ? A_index_TPU: A_index_CFU;
   assign B_index_w = cur_state == STATE_EXEC ? B_index_TPU: B_index_CFU;
   assign C_index_w = cur_state == STATE_EXEC ? C_index_TPU: C_index_CFU;
@@ -223,30 +224,48 @@ module Cfu (
     if (opcode == OP_READ_MEM) begin
       rsp_payload_outputs_0 = C_data_out;
     end
+    else if (opcode == OP_DEBUG_OUT) begin
+      if (funct_id == 0) rsp_payload_outputs_0 = A_data_out;
+      else if (funct_id == 1) rsp_payload_outputs_0 = B_data_out;
+      else rsp_payload_outputs_0 = 0;
+    end
     else begin
-      rsp_payload_outputs_0 = 100+opcode;
+      rsp_payload_outputs_0 = 300+opcode;
     end
   end
+
+  // for testing
+  assign C_wr_en = cur_state == STATE_EXEC;
 
   always @(posedge clk) begin
     case (cur_state)
       STATE_IDLE: begin
         A_wr_en <= 0;
         B_wr_en <= 0;
-        if (funct_id[5] == 0) begin
-          A_index_CFU <= cmd_inputs_0[15:0];
-        end
-        else begin
-          B_index_CFU <= cmd_inputs_0[15:0];
+        if (opcode == OP_WRITE_MEM) begin
+          if (funct_id[5] == 0) begin
+            A_index_CFU <= cmd_inputs_0[15:0];
+          end
+          else begin
+            B_index_CFU <= cmd_inputs_0[15:0];
+          end
         end
         C_index_CFU <= cmd_inputs_0[15:0];
+        if (opcode == OP_RESET) begin
+          counter <= 0;
+        end
 
       end
       STATE_EXEC: begin
 
+        // for testing only
+        C_index_CFU <= 0;
+        C_data_in <= A_data_out * B_data_out;
+        counter <= counter + 1;
+
       end
       STATE_READ_MEM: begin
-
+        // nothing... waiting for data
       end
       STATE_RSP_READY: begin
         if (opcode == OP_WRITE_MEM) begin
