@@ -1,6 +1,6 @@
 `timescale 1ns/10ps
 // `include "/home/kie/MyProjects/aaml/CFU-Playground/proj/lab5/RTL/TPU.v"
-// `include "/home/kie/MyProjects/aaml/CFU-Playground/proj/lab5/RTL/systolic.v"
+`include "/home/kie/MyProjects/aaml/CFU-Playground/proj/lab5/RTL/systolic.v"
 `include "/home/kie/MyProjects/aaml/CFU-Playground/proj/lab5/RTL/global_buffer.v"
 
 // Copyright 2021 The CFU-Playground Authors
@@ -89,7 +89,7 @@ module Cfu (
 
 
   global_buffer #(
-      .ADDR_BITS(12),
+      .ADDR_BITS(14),
       .DATA_BITS(32)
   )
   gbuff_A(
@@ -102,7 +102,7 @@ module Cfu (
   );
 
   global_buffer #(
-      .ADDR_BITS(12),
+      .ADDR_BITS(14),
       .DATA_BITS(32)
   ) gbuff_B(
       .clk(clk),
@@ -136,8 +136,9 @@ module Cfu (
   reg [6:0]  funct_id_reg = 0;
   reg [2:0]  opcode_reg = 0;
 
-  assign opcode = cmd_valid ? cmd_payload_function_id[2:0]:opcode_reg;
-  assign funct_id = cmd_valid ? cmd_payload_function_id[9:3]:funct_id_reg;
+  assign cmd_ready = (cur_state == STATE_IDLE);
+  assign opcode = cmd_valid ? cmd_payload_function_id[2:0] : opcode_reg;
+  assign funct_id = cmd_valid ? cmd_payload_function_id[9:3] : funct_id_reg;
   assign cmd_inputs_0 = cmd_valid ? cmd_payload_inputs_0 : cmd_inputs_0_reg;
   assign cmd_inputs_1 = cmd_valid ? cmd_payload_inputs_1 : cmd_inputs_1_reg;
 
@@ -179,14 +180,12 @@ module Cfu (
     end
   end
 
-  assign cmd_ready = (cur_state == STATE_IDLE);
-
   always @(*) begin
     case (cur_state)
       STATE_IDLE: begin
         if (cmd_ready && cmd_valid) begin
           if (opcode == OP_COMPUTE) next_state = STATE_EXEC;
-          else if (opcode == OP_READ_MEM) next_state = STATE_READ_MEM;
+          else if (opcode == OP_READ_MEM || opcode == OP_DEBUG_OUT) next_state = STATE_READ_MEM;
           else next_state = STATE_RSP_READY;
         end
         else next_state = STATE_IDLE;
@@ -222,7 +221,7 @@ module Cfu (
 
   always @(*) begin
     if (opcode == OP_READ_MEM) begin
-      rsp_payload_outputs_0 = C_data_out;
+      rsp_payload_outputs_0 = C_data_out[cmd_inputs_0[1:0] * 32 +: 32];
     end
     else if (opcode == OP_DEBUG_OUT) begin
       if (funct_id == 0) rsp_payload_outputs_0 = A_data_out;
@@ -234,23 +233,53 @@ module Cfu (
     end
   end
 
+  always @(*) begin
+    if (cur_state == STATE_IDLE && opcode == OP_WRITE_MEM) begin
+      if (funct_id == 0) begin
+        A_wr_en = 1;
+        B_wr_en = 0;
+      end
+      else if (funct_id == 1) begin
+        A_wr_en = 0;
+        B_wr_en = 1;
+      end
+      else begin
+        A_wr_en = 0;
+        B_wr_en = 0;
+      end
+    end
+    else begin
+      A_wr_en = 0;
+      B_wr_en = 0;
+    end
+
+  end
+
+
+  always @(*) begin
+    if (cur_state == STATE_IDLE && opcode == OP_WRITE_MEM) begin
+      A_data_in = cmd_inputs_1;
+      B_data_in = cmd_inputs_1;
+    end
+    else begin
+      A_data_in = 0;
+      B_data_in = 0;
+    end
+  end
+
+  always @(*) begin
+    A_index_CFU = cmd_inputs_0[15:0];
+    B_index_CFU = cmd_inputs_0[15:0];
+    C_index_CFU = cmd_inputs_0[15:2];
+  end
+
+
   // for testing
   assign C_wr_en = cur_state == STATE_EXEC;
 
   always @(posedge clk) begin
     case (cur_state)
       STATE_IDLE: begin
-        A_wr_en <= 0;
-        B_wr_en <= 0;
-        if (opcode == OP_WRITE_MEM) begin
-          if (funct_id[5] == 0) begin
-            A_index_CFU <= cmd_inputs_0[15:0];
-          end
-          else begin
-            B_index_CFU <= cmd_inputs_0[15:0];
-          end
-        end
-        C_index_CFU <= cmd_inputs_0[15:0];
         if (opcode == OP_RESET) begin
           counter <= 0;
         end
@@ -259,7 +288,6 @@ module Cfu (
       STATE_EXEC: begin
 
         // for testing only
-        C_index_CFU <= 0;
         C_data_in <= A_data_out * B_data_out;
         counter <= counter + 1;
 
@@ -268,16 +296,7 @@ module Cfu (
         // nothing... waiting for data
       end
       STATE_RSP_READY: begin
-        if (opcode == OP_WRITE_MEM) begin
-          if (funct_id[5] == 0) begin
-            A_wr_en <= 1;
-            A_data_in <= cmd_inputs_1;
-          end
-          else begin
-            B_wr_en <= 1;
-            B_data_in <= cmd_inputs_1;
-          end
-        end
+
       end
 
       default:;

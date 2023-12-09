@@ -18,14 +18,15 @@
 
 #include <stdio.h>
 
+#include <array>
+#include <cstdint>
+
 #include "cfu.h"
 #include "menu.h"
 
 namespace {
 
 // Template Fn
-
-void do_hello_world(void) { puts("Hello, World!!!\n"); }
 
 // Test template instruction
 void do_grid_cfu_op0(void) {
@@ -43,13 +44,6 @@ void do_grid_cfu_op0(void) {
     }
     puts("");
   }
-}
-
-void do_simple_add(void) {
-  printf("\nsimple add to test interface\n");
-  int a=10, b=10;
-  int cfu = cfu_op0(1, a, b);
-  printf("%d\n", cfu);
 }
 
 void zero(void) {
@@ -75,25 +69,74 @@ void do_exercise_cfu_op0(void) {
   printf("Performed %d comparisons", count);
 }
 
-void matmul(void) {
-  printf("\nmatrix multiply\n");
-  int r = cfu_op0(0, 0, 0);           // reset the cfu
+void writeA(void) {
+  printf("\nwrite matrix A (addr, value)\n");
+  int a, b;
+  scanf("%d %d", &a, &b);
+  int r = cfu_op1(0, a, b);  // write A[0]
   printf("opcode: %d\n", r);
-  r = cfu_op1(0, 0, 16);          // write A[0]
+}
+
+void writeB(void) {
+  printf("\nwrite matrix B (addr, value)\n");
+  int a, b;
+  scanf("%d %d", &a, &b);
+  int r = cfu_op1(1, a, b);  // write A[0]
   printf("opcode: %d\n", r);
-  r = cfu_op1(32, 0, 5);        // write B[0]
+}
+
+void read_mat(void) {
+  int r;
+  printf("\nread the matrix A\n");
+  for (int a=0; a<20; ++a) {
+    r = cfu_op7(0, a, 0);
+    printf("%d ", r);
+  }
+  printf("\nread the matrix B\n");
+  for (int a=0; a<20; ++a) {
+    r = cfu_op7(1, a, 0);
+    printf("%d ", r);
+  }
+  printf("\nread the matrix C\n");
+  for (int a=0; a<20; ++a) {
+    r = cfu_op3(2, a, -1);
+    printf("%d ", r);
+  }
+
+}
+
+void compute(void) {
+  cfu_op0(0, 0, 0);
+  int r = cfu_op2(0, 0, (1 << 16) + 1);
   printf("opcode: %d\n", r);
-  r = cfu_op2(0, 1, (1<<16) + 1);
-  printf("opcode: %d\n", r);
-  r = cfu_op3(0, 0, -1);
+  int a;
+  scanf("%d", &a);
+  r = cfu_op3(0, a, -1);
   printf("result: %d\n", r);
+}
+
+void matrix_multiply(void) {
+  printf("\nmatrix multiply\n");
+  int r = cfu_op0(0, 0, 0);  // reset the cfu
+  std::array<std::array<int32_t, 4>, 4> A = {
+      {{2, 0, 0, 0}, {0, 2, 0, 0}, {0, 0, 2, 0}, {0, 0, 0, 2}}};
+  std::array<std::array<int32_t, 4>, 4> B = {
+      {{1, 2, 3, 4}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}}};
+  for (int k = 0; k < 4; ++k) {
+    uint32_t a4 = 0, b4 = 0;
+    for (int j = 0; j < 4; ++j) {
+      a4 += A[j][k] << j;
+      b4 += B[k][j] << j;
+    }
+    cfu_op1(0, k, a4);
+    cfu_op1(32, k, b4);
+  }
   r = cfu_op7(0, 0, 0);
   printf("debug: %d\n", r);
   r = cfu_op7(1, 0, 0);
   printf("debug: %d\n", r);
   r = cfu_op3(0, 0, 0);
   printf("debug: %d\n", r);
-
 }
 
 struct Menu MENU = {
@@ -102,15 +145,16 @@ struct Menu MENU = {
     {
         MENU_ITEM('0', "exercise cfu op0", do_exercise_cfu_op0),
         MENU_ITEM('g', "grid cfu op0", do_grid_cfu_op0),
-        MENU_ITEM('h', "say Hello", do_hello_world),
-
-        MENU_ITEM('a', "add counter", do_simple_add),
+        MENU_ITEM('r', "read data", read_mat),
         MENU_ITEM('z', "zero counter", zero),
-        MENU_ITEM('m', "matrix multiply", matmul),
+        MENU_ITEM('m', "matrix multiply", matrix_multiply),
+        MENU_ITEM('a', "write A", writeA),
+        MENU_ITEM('b', "write B", writeB),
+        MENU_ITEM('c', "compute", compute),
         MENU_END,
     },
 };
-
-};  // anonymous namespace
+}
+;  // anonymous namespace
 
 extern "C" void do_proj_menu() { menu_run(&MENU); }

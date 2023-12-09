@@ -37,27 +37,27 @@ reg PE_clear = 1'b1;
 reg PE_enable = 1'b0;
 
 generate
-genvar i, j;
-  for(i=0; i < ar_size; i=i+1) begin 
-    for(j=0; j < ar_size; j=j+1) begin
+genvar gi, gj;
+  for(gi=0; gi < ar_size; gi=gi+1) begin 
+    for(gj=0; gj < ar_size; gj=gj+1) begin
       PE u_pe(
         clk,
         PE_clear, 
         PE_enable,
-        inter_col[i][j],
-        inter_row[i][j],
-        inter_col[i][j+1],
-        inter_row[i+1][j],
-        results[i][j]
+        inter_col[gi][gj],
+        inter_row[gi][gj],
+        inter_col[gi][gj+1],
+        inter_row[gi+1][gj],
+        results[gi][gj]
       );
     end
   end
 
-  for(i=0; i < ar_size; i=i+1) begin
-    assign inter_col[i][0] = left_data[i][0];
+  for(gi=0; gi < ar_size; gi=gi+1) begin
+    assign inter_col[gi][0] = left_data[gi][0];
   end
-  for (j=0; j < ar_size; j=j+1) begin
-    assign inter_row[0][j] = top_data[0][j];
+  for (gj=0; gj < ar_size; gj=gj+1) begin
+    assign inter_row[0][gj] = top_data[0][gj];
   end
 endgenerate
 
@@ -115,6 +115,7 @@ case (cur_state)
 endcase
 end
 
+integer i, j;
 
 always @(posedge clk) begin
 case (cur_state)
@@ -128,8 +129,8 @@ case (cur_state)
     PE_clear <= 0;
     PE_enable <= 1;
     counter_stop <= K + 8 - 1;
-    for (integer i=0; i < ar_size; i=i+1) begin
-      for (integer j=0; j < ar_size; j=j+1) begin
+    for (i=0; i < ar_size; i=i+1) begin
+      for (j=0; j < ar_size; j=j+1) begin
         top_data[i][j] <= 0;
         left_data[i][j] <= 0;
       end
@@ -141,11 +142,11 @@ case (cur_state)
     A_index <= counter + 1;
     B_index <= counter + 1;
 
-    for (integer i=0; i < ar_size; i=i+1) begin
+    for (i=0; i < ar_size; i=i+1) begin
       top_data[i][i] <= (counter < K ? B_data[31-i*8 -: 8] : 32'd0);
       left_data[i][i] <= (counter < K ? A_data[31-i*8 -: 8] : 32'd0);
 
-      for (integer j=0; j < i; j=j+1) begin
+      for (j=0; j < i; j=j+1) begin
         top_data[j][i] <= top_data[j+1][i];
         left_data[i][j] <= left_data[i][j+1];
 
