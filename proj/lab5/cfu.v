@@ -255,7 +255,6 @@ module Cfu (
 
   end
 
-
   always @(*) begin
     if (cur_state == STATE_IDLE && opcode == OP_WRITE_MEM) begin
       A_data_in = cmd_inputs_1;

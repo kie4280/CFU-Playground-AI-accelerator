@@ -29,44 +29,9 @@ namespace {
 // Template Fn
 
 // Test template instruction
-void do_grid_cfu_op0(void) {
-  puts("\nExercise CFU Op0\n");
-  printf("a   b-->");
-  for (int b = 0; b < 6; b++) {
-    printf("%8d", b);
-  }
-  puts("\n-------------------------------------------------------");
-  for (int a = 0; a < 6; a++) {
-    printf("%-8d", a);
-    for (int b = 0; b < 6; b++) {
-      int cfu = cfu_op0(0, a, b);
-      printf("%8d", cfu);
-    }
-    puts("");
-  }
-}
-
 void zero(void) {
   printf("\nzero the counter\n");
   cfu_op0(0, 0, 0);
-}
-
-// Test template instruction
-void do_exercise_cfu_op0(void) {
-  puts("\nExercise CFU Op0\n");
-  int count = 0;
-  for (int a = -0x71234567; a < 0x68000000; a += 0x10012345) {
-    for (int b = -0x7edcba98; b < 0x68000000; b += 0x10770077) {
-      int cfu = cfu_op0(0, a, b);
-      printf("a: %08x b:%08x cfu=%08x\n", a, b, cfu);
-      if (cfu != a) {
-        printf("\n***FAIL\n");
-        return;
-      }
-      count++;
-    }
-  }
-  printf("Performed %d comparisons", count);
 }
 
 void writeA(void) {
@@ -125,11 +90,11 @@ void matrix_multiply(void) {
   for (int k = 0; k < 4; ++k) {
     uint32_t a4 = 0, b4 = 0;
     for (int j = 0; j < 4; ++j) {
-      a4 += A[j][k] << j;
-      b4 += B[k][j] << j;
+      a4 += A[j][k] << (j<<3);
+      b4 += B[k][j] << (j<<3);
     }
     cfu_op1(0, k, a4);
-    cfu_op1(32, k, b4);
+    cfu_op1(1, k, b4);
   }
   r = cfu_op7(0, 0, 0);
   printf("debug: %d\n", r);
@@ -143,8 +108,6 @@ struct Menu MENU = {
     "Project Menu",
     "project",
     {
-        MENU_ITEM('0', "exercise cfu op0", do_exercise_cfu_op0),
-        MENU_ITEM('g', "grid cfu op0", do_grid_cfu_op0),
         MENU_ITEM('r', "read data", read_mat),
         MENU_ITEM('z', "zero counter", zero),
         MENU_ITEM('m', "matrix multiply", matrix_multiply),
