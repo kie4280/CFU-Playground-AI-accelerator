@@ -27,7 +27,7 @@ reg [2:0] next_state = STATE_IDLE;
 
 wire [7:0] inter_row [0:ar_size][0:ar_size-1];
 wire [7:0] inter_col [0:ar_size-1][0:ar_size];
-wire [127:0] results [0:ar_size][0:ar_size];
+wire [31:0] results [0:ar_size][0:ar_size];
 reg [7:0] top_data [0:ar_size-1][0:ar_size-1];
 reg [7:0] left_data [0:ar_size-1][0:ar_size-1];
 
@@ -90,13 +90,12 @@ end
 
 always @(*) begin
   C_data_out = {
-    results[counter][0][31:0],
-    results[counter][1][31:0],
-    results[counter][2][31:0],
-    results[counter][3][31:0]
+    results[counter][3],
+    results[counter][2],
+    results[counter][1],
+    results[counter][0]
   };
 end
-
 
 always @(*) begin
   if (cur_state == STATE_WRITE || cur_state == STATE_BUSY) begin
@@ -176,7 +175,6 @@ case (cur_state)
       for (j=0; j < i; j=j+1) begin
         top_data[j][i] <= top_data[j+1][i];
         left_data[i][j] <= left_data[i][j+1];
-
       end
     end
   end
@@ -185,7 +183,6 @@ case (cur_state)
     counter <= counter + 1;
 
   end
-
   default: ;
 endcase
 end
@@ -201,7 +198,7 @@ module PE(
   input [7:0] top,
   output reg [7:0] right,
   output reg [7:0] bottom,
-  output reg [127:0] result
+  output reg [31:0] result
 ); 
 
 wire [31:0] mul;

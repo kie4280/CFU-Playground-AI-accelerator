@@ -20,11 +20,27 @@
 
 #include <array>
 #include <cstdint>
+#include <cstdlib>
 
 #include "cfu.h"
 #include "menu.h"
 
 namespace {
+
+// matrix multiply with matrix B
+void matrixMult(int32_t* out, int32_t* A, int32_t* B, int m, int k, int n) {
+  for (int a = 0; a < m; ++a) {
+    for (int b = 0; b < n; ++b) {
+      const int o_idx = a * n + b;
+      out[o_idx] = 0;
+      for (int c = 0; c < k; ++c) {
+        const int a_idx = a * k + c;
+        const int b_idx = c * n + b;
+        out[o_idx] += A[a_idx] * B[b_idx];
+      }
+    }
+  }
+}
 
 // Template Fn
 
@@ -79,30 +95,69 @@ void compute(void) {
   printf("result: %d\n", r);
 }
 
-void matrix_multiply(void) {
-  printf("\nmatrix multiply\n");
+bool matrix_multiply(void) {
   int r = cfu_op0(0, 0, 0);  // reset the cfu
-  std::array<std::array<int32_t, 4>, 4> A = {
-      {{1, 0, 0, 0}, {0, 2, 0, 0}, {0, 0, 3, 0}, {0, 0, 0, 4}}};
-  std::array<std::array<int32_t, 4>, 4> B = {
-      {{1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 1}}};
+  std::array<int32_t, 16> A;
+  std::array<int32_t, 16> B;
+  std::array<int32_t, 16> answer;
+  std::array<int32_t, 16> cfu_result;
+  for (int a = 0; a < 16; ++a) {
+    A[a] = std::rand() % 255;
+    B[a] = std::rand() % 255;
+  }
   for (int k = 0; k < 4; ++k) {
     uint32_t a4 = 0, b4 = 0;
     for (int j = 0; j < 4; ++j) {
-      a4 += A[j][k] << (j << 3);
-      b4 += B[k][j] << (j << 3);
+      a4 += A[4 * j + k] << (j << 3);
+      b4 += B[4 * k + j] << (j << 3);
     }
     cfu_op1(0, k, a4);
     cfu_op1(1, k, b4);
   }
   r = cfu_op2(0, 4, (4 << 16) + 4);
-  printf("cycles: %d\n", r);
-  r = cfu_op7(0, 0, 0);
-  printf("debug: %d\n", r);
-  r = cfu_op7(1, 0, 0);
-  printf("debug: %d\n", r);
-  r = cfu_op3(0, 0, 0);
-  printf("debug: %d\n", r);
+  // printf("cycles: %d\n", r);
+  for (int a = 0; a < 4; ++a) {
+    for (int b = 0; b < 4; ++b) {
+      r = cfu_op3(0, a * 4 + b, 0);
+      cfu_result[a * 4 + b] = r;
+      printf("%d ", r);
+    }
+    printf("\n");
+  }
+  printf("\n");
+  matrixMult(answer.begin(), A.data(), B.data(), 4, 4, 4);
+  for (int a = 0; a < 16; ++a) {
+    if (answer[a] != cfu_result[a]) {
+      return false;
+    } else if (a == 15) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void matrix_check(void) {
+  printf("\nmatrix multiply\n");
+  bool pass = matrix_multiply();
+  if (!pass) {
+    printf("answer check failed\n");
+  } else {
+    printf("matrix multiply test passed\n");
+  }
+}
+
+void golden_check(void) {
+  bool pass = true;
+  int a;
+  for (a = 0; a < 1000; ++a) {
+    pass = matrix_multiply();
+    if (!pass) break;
+  }
+  if (!pass) {
+    printf("answer check failed on case %d\n", a + 1);
+  } else {
+    printf("matrix multiply test passed\n");
+  }
 }
 
 struct Menu MENU = {
@@ -111,10 +166,11 @@ struct Menu MENU = {
     {
         MENU_ITEM('r', "read data", read_mat),
         MENU_ITEM('z', "zero counter", zero),
-        MENU_ITEM('m', "matrix multiply", matrix_multiply),
+        MENU_ITEM('m', "matrix multiply", matrix_check),
         MENU_ITEM('a', "write A", writeA),
         MENU_ITEM('b', "write B", writeB),
         MENU_ITEM('c', "compute", compute),
+        MENU_ITEM('g', "golden test", golden_check),
         MENU_END,
     },
 };

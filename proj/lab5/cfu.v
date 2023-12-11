@@ -205,7 +205,6 @@ module Cfu (
 
       default:;
     endcase
-
   end
 
   reg [31:0] counter = 0;
