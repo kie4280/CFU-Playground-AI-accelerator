@@ -53,21 +53,20 @@ void writeB(void) {
 void read_mat(void) {
   int r;
   printf("\nread the matrix A\n");
-  for (int a=0; a<20; ++a) {
+  for (int a = 0; a < 20; ++a) {
     r = cfu_op7(0, a, 0);
     printf("%d ", r);
   }
   printf("\nread the matrix B\n");
-  for (int a=0; a<20; ++a) {
+  for (int a = 0; a < 20; ++a) {
     r = cfu_op7(1, a, 0);
     printf("%d ", r);
   }
   printf("\nread the matrix C\n");
-  for (int a=0; a<20; ++a) {
+  for (int a = 0; a < 20; ++a) {
     r = cfu_op3(2, a, -1);
     printf("%d ", r);
   }
-
 }
 
 void compute(void) {
@@ -84,18 +83,20 @@ void matrix_multiply(void) {
   printf("\nmatrix multiply\n");
   int r = cfu_op0(0, 0, 0);  // reset the cfu
   std::array<std::array<int32_t, 4>, 4> A = {
-      {{2, 0, 0, 0}, {0, 2, 0, 0}, {0, 0, 2, 0}, {0, 0, 0, 2}}};
+      {{1, 0, 0, 0}, {0, 2, 0, 0}, {0, 0, 3, 0}, {0, 0, 0, 4}}};
   std::array<std::array<int32_t, 4>, 4> B = {
-      {{1, 2, 3, 4}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}}};
+      {{1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 1}}};
   for (int k = 0; k < 4; ++k) {
     uint32_t a4 = 0, b4 = 0;
     for (int j = 0; j < 4; ++j) {
-      a4 += A[j][k] << (j<<3);
-      b4 += B[k][j] << (j<<3);
+      a4 += A[j][k] << (j << 3);
+      b4 += B[k][j] << (j << 3);
     }
     cfu_op1(0, k, a4);
     cfu_op1(1, k, b4);
   }
+  r = cfu_op2(0, 4, (4 << 16) + 4);
+  printf("cycles: %d\n", r);
   r = cfu_op7(0, 0, 0);
   printf("debug: %d\n", r);
   r = cfu_op7(1, 0, 0);
@@ -117,7 +118,6 @@ struct Menu MENU = {
         MENU_END,
     },
 };
-}
-;  // anonymous namespace
+};  // anonymous namespace
 
 extern "C" void do_proj_menu() { menu_run(&MENU); }

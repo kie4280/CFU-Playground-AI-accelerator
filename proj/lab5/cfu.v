@@ -31,12 +31,12 @@ module Cfu (
   input               clk
 );
 
-  reg             A_wr_en;
+  reg             A_wr_en = 0;
   wire [15:0]     A_index_w;
   wire [31:0]     A_data_out;
   reg  [31:0]     A_data_in;
 
-  reg             B_wr_en;
+  reg             B_wr_en = 0;
   wire [15:0]     B_index_w;
   wire [31:0]     B_data_out;
   reg  [31:0]     B_data_in;
@@ -44,17 +44,17 @@ module Cfu (
   wire            C_wr_en;
   wire [15:0]     C_index_w;
   wire [127:0]    C_data_out;
-  reg  [127:0]    C_data_in;
+  wire [127:0]    C_data_in;
 
-  reg             in_valid;
+  reg             in_valid = 0;
   wire [7:0]      M;
   wire [7:0]      K;
   wire [7:0]      N;
-  reg             busy = 0;
+  wire            busy;
 
-  reg  [15:0]     A_index_CFU;
-  reg  [15:0]     B_index_CFU;
-  reg  [15:0]     C_index_CFU;
+  reg  [15:0]     A_index_CFU = 0;
+  reg  [15:0]     B_index_CFU = 0;
+  reg  [15:0]     C_index_CFU = 0;
 
   wire [15:0]     A_index_TPU;
   wire [15:0]     B_index_TPU;
@@ -64,28 +64,22 @@ module Cfu (
   assign K = cmd_inputs_1[31:16];
   assign N = cmd_inputs_1[15:0];
 
-  // SystolicArray my_tpu(
-  //   .clk(clk),
-  //   .rst_n(~reset),
-  //   .in_valid(in_valid),
-  //   .M(M),
-  //   .K(K),
-  //   .N(N),
-  //   .busy(busy),
-  //   .A_wr_en(A_wr_en),
-  //   .A_index(A_index_TPU),
-  //   .A_data_in(A_data_in),
-  //   .A_data_out(A_data_out),
-  //   .B_wr_en(B_wr_en),
-  //   .B_index(B_index_TPU),
-  //   .B_data_in(B_data_in),
-  //   .B_data_out(B_data_out),
-  //   .C_wr_en(C_wr_en),
-  //   .C_index(C_index_TPU),
-  //   .C_data_in(C_data_in),
-  //   .C_data_out(C_data_out)
+  SystolicArray my_tpu(
+    .clk(clk),
+    .M(M),
+    .K(K),
+    .N(N),
+    .busy(busy),
+    .enable(in_valid),
+    .A_index(A_index_TPU),
+    .A_data(A_data_out),
+    .B_index(B_index_TPU),
+    .B_data(B_data_out),
+    .C_wr_en(C_wr_en),
+    .C_index(C_index_TPU),
+    .C_data_out(C_data_in)
 
-  // );
+  );
 
 
   global_buffer #(
@@ -193,7 +187,7 @@ module Cfu (
 
       end
       STATE_EXEC: begin
-        if (counter >= 3) next_state = STATE_RSP_READY;
+        if (~busy) next_state = STATE_RSP_READY;
         else next_state = STATE_EXEC;
         rsp_valid = 0;
 
@@ -228,6 +222,9 @@ module Cfu (
       else if (funct_id == 1) rsp_payload_outputs_0 = B_data_out;
       else rsp_payload_outputs_0 = 0;
     end
+  else if (opcode == OP_COMPUTE) begin
+    rsp_payload_outputs_0 = counter;
+  end
     else begin
       rsp_payload_outputs_0 = 300+opcode;
     end
@@ -274,7 +271,8 @@ module Cfu (
 
 
   // for testing
-  assign C_wr_en = cur_state == STATE_EXEC;
+  // assign C_wr_en = cur_state == STATE_EXEC;
+  // assign C_data_in = A_data_out * B_data_out;
 
   always @(posedge clk) begin
     case (cur_state)
@@ -282,12 +280,15 @@ module Cfu (
         if (opcode == OP_RESET) begin
           counter <= 0;
         end
+        else if (opcode == OP_COMPUTE && cmd_valid) begin
+          in_valid <= 1;
+        end
 
       end
       STATE_EXEC: begin
+        in_valid <= 0;
 
         // for testing only
-        C_data_in <= A_data_out * B_data_out;
         counter <= counter + 1;
 
       end

@@ -1,26 +1,24 @@
 module SystolicArray(
-  input              clk,
-  input [7:0]        M,
-  input [7:0]        N,
-  input [7:0]        K,
+  input wire         clk,
+  input wire [7:0]   M,
+  input wire [7:0]   N,
+  input wire [7:0]   K,
   output reg [15:0]  A_index,
-  input [31:0]       A_data,
+  input wire [31:0]  A_data,
   output reg [15:0]  B_index,
-  input [31:0]       B_data,
+  input wire [31:0]  B_data,
   output reg [15:0]  C_index,
   output reg [127:0] C_data_out,
-  output reg         C_wr_en,
-  input              enable,
+  output wire        C_wr_en,
+  input  wire        enable,
   output reg         busy
 );
 
 parameter ar_size = 4;
 
-parameter STATE_RESET      = 0;
+parameter STATE_IDLE       = 0;
 parameter STATE_BUSY       = 1;
-parameter STATE_PAUSE      = 2;
-parameter STATE_WRITE      = 3;
-parameter STATE_IDLE       = 4;
+parameter STATE_WRITE      = 2;
 
 reg [15:0] counter;
 reg [15:0] counter_stop;
@@ -33,8 +31,8 @@ wire [127:0] results [0:ar_size][0:ar_size];
 reg [7:0] top_data [0:ar_size-1][0:ar_size-1];
 reg [7:0] left_data [0:ar_size-1][0:ar_size-1];
 
-reg PE_clear = 1'b1;
-reg PE_enable = 1'b0;
+reg PE_clear = 1;
+reg PE_enable = 1;
 
 generate
 genvar gi, gj;
@@ -62,11 +60,11 @@ genvar gi, gj;
 endgenerate
 
 
-always @(posedge clk, posedge enable) begin
+assign C_wr_en = cur_state == STATE_WRITE;
+
+always @(*) begin
   if (cur_state == STATE_WRITE 
     || cur_state == STATE_BUSY
-    || cur_state == STATE_RESET
-    || cur_state == STATE_PAUSE
     || enable) begin
     busy = 1;
   end
@@ -75,6 +73,53 @@ always @(posedge clk, posedge enable) begin
   end
 end
 
+always @(*) begin
+  if (cur_state == STATE_BUSY) begin
+    PE_enable = 1;
+    PE_clear = 0;
+  end
+  else if (cur_state == STATE_WRITE) begin
+    PE_enable = 0;
+    PE_clear = 0;
+  end
+  else begin
+    PE_enable = 0;
+    PE_clear = 1;
+  end
+end
+
+always @(*) begin
+  C_data_out = {
+    results[counter][0][31:0],
+    results[counter][1][31:0],
+    results[counter][2][31:0],
+    results[counter][3][31:0]
+  };
+end
+
+
+always @(*) begin
+  if (cur_state == STATE_WRITE || cur_state == STATE_BUSY) begin
+    A_index = counter;
+    B_index = counter;
+    C_index = counter;
+  end
+  else begin
+    A_index = 0;
+    B_index = 0;
+    C_index = 0;
+  end
+
+end
+integer ai;
+
+always @(*) begin
+  for (ai=0; ai < ar_size; ai=ai+1) begin
+    top_data[ai][ai] = (counter <= K ? B_data[ai*8 +: 8] : 8'd0);
+    left_data[ai][ai] = (counter <= K ? A_data[ai*8 +: 8] : 8'd0);
+  end
+
+end
 
 always @(posedge clk) begin
   cur_state <= next_state; 
@@ -82,34 +127,28 @@ end
 
 always @(*) begin
 case (cur_state)
-  STATE_RESET: begin
-    next_state = STATE_BUSY;
-  end
   
-  STATE_BUSY: begin
-    if (counter >= counter_stop) begin
-      next_state = STATE_PAUSE;
-    end
-
+  STATE_IDLE: begin
+    counter_stop = 0;
+    if (enable) next_state = STATE_BUSY;
+    else next_state = STATE_IDLE;
   end
 
-  STATE_PAUSE: begin
-    next_state = STATE_WRITE;
+  STATE_BUSY: begin
+    counter_stop = K + 7;
+    if (counter >= counter_stop) begin
+      next_state = STATE_WRITE;
+    end
+    else next_state = STATE_BUSY;
   end
 
   STATE_WRITE: begin
+    counter_stop = 3;
     if (counter >= counter_stop) begin
       next_state = STATE_IDLE;
     end
-
+    else next_state = STATE_WRITE;
   end
-
-  STATE_IDLE: begin
-    if (enable) 
-      next_state = STATE_RESET;
-
-  end
-
   default:;
 
 endcase
@@ -120,32 +159,20 @@ integer i, j;
 always @(posedge clk) begin
 case (cur_state)
 
-  STATE_RESET: begin
-    A_index <= 0;
-    B_index <= 0;
-    C_index <= 0;
-    C_wr_en <= 0;
-    counter <= 0;
-    PE_clear <= 0;
-    PE_enable <= 1;
-    counter_stop <= K + 8 - 1;
-    for (i=0; i < ar_size; i=i+1) begin
-      for (j=0; j < ar_size; j=j+1) begin
-        top_data[i][j] <= 0;
-        left_data[i][j] <= 0;
-      end
-    end
+  STATE_IDLE: begin
+    if (enable) counter <= 1;
+    else counter <= 0;
   end
 
   STATE_BUSY: begin
-    counter <= counter + 1;
-    A_index <= counter + 1;
-    B_index <= counter + 1;
+    if (counter >= counter_stop) begin
+      counter <= 0;
+    end
+    else begin
+      counter <= counter + 1;
+    end
 
     for (i=0; i < ar_size; i=i+1) begin
-      top_data[i][i] <= (counter < K ? B_data[31-i*8 -: 8] : 32'd0);
-      left_data[i][i] <= (counter < K ? A_data[31-i*8 -: 8] : 32'd0);
-
       for (j=0; j < i; j=j+1) begin
         top_data[j][i] <= top_data[j+1][i];
         left_data[i][j] <= left_data[i][j+1];
@@ -154,35 +181,10 @@ case (cur_state)
     end
   end
 
-  STATE_PAUSE: begin
-    counter <= 0;
-    counter_stop <= 4-1;
-    PE_enable <= 0;
-
-  end
-
   STATE_WRITE: begin
     counter <= counter + 1;
-    C_wr_en <= 1;
-    C_index <= counter;
-    C_data_out <= {
-      results[counter][0][31:0],
-      results[counter][1][31:0],
-      results[counter][2][31:0],
-      results[counter][3][31:0]
-    };
 
   end
-
-  STATE_IDLE: begin
-    PE_enable <= 0;
-    PE_clear <= 1;
-    counter <= 0;
-    counter_stop <= 0;
-    C_wr_en <= 0;
-
-  end
-
 
   default: ;
 endcase
@@ -205,7 +207,7 @@ module PE(
 wire [31:0] mul;
 assign mul = left * top;
 
-always @(posedge clk or posedge clear) begin
+always @(posedge clk) begin
   if (clear == 1) begin
     result <= 0;
     right <= 0;
