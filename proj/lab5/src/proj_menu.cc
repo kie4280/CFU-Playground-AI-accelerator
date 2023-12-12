@@ -97,27 +97,37 @@ void compute(void) {
 
 bool matrix_multiply(void) {
   int r = cfu_op0(0, 0, 0);  // reset the cfu
-  std::array<int32_t, 16> A;
-  std::array<int32_t, 16> B;
-  std::array<int32_t, 16> answer;
-  std::array<int32_t, 16> cfu_result;
-  for (int a = 0; a < 16; ++a) {
-    A[a] = std::rand() % 255;
-    B[a] = std::rand() % 255;
+  const int m = 4, k = 6, n = 4;
+  std::array<int32_t, m*k> A;
+  std::array<int32_t, k*n> B;
+  std::array<int32_t, m*n> answer;
+  std::array<int32_t, m*n> cfu_result;
+  for (int a = 0; a < m*k; ++a) {
+    // A[a] = std::rand() % 255;
+    A[a] = a;
   }
-  for (int k = 0; k < 4; ++k) {
-    uint32_t a4 = 0, b4 = 0;
-    for (int j = 0; j < 4; ++j) {
-      a4 += A[4 * j + k] << (j << 3);
-      b4 += B[4 * k + j] << (j << 3);
+  for (int a=0; a<k*n; ++a) {
+    // B[a] = std::rand() % 255;
+    B[a] = a;
+  }
+  for (int i = 0; i < k; ++i) {
+    uint32_t a4 = 0;
+    for (int j = 0; j < m; ++j) {
+      a4 += A[k * j + i] << (j << 3);
     }
-    cfu_op1(0, k, a4);
-    cfu_op1(1, k, b4);
+    cfu_op1(0, i, a4);
   }
-  r = cfu_op2(0, 4, (4 << 16) + 4);
-  // printf("cycles: %d\n", r);
-  for (int a = 0; a < 4; ++a) {
-    for (int b = 0; b < 4; ++b) {
+  for (int i = 0; i < k; ++i) {
+    uint32_t b4 = 0;
+    for (int j = 0; j < n; ++j) {
+      b4 += B[n * i + j] << (j << 3);
+    }
+    cfu_op1(1, i, b4);
+  }
+  r = cfu_op2(0, 4, (k << 16) + 4);
+  printf("cycles: %d\n", r);
+  for (int a = 0; a < m; ++a) {
+    for (int b = 0; b < n; ++b) {
       r = cfu_op3(0, a * 4 + b, 0);
       cfu_result[a * 4 + b] = r;
       printf("%d ", r);
@@ -125,9 +135,10 @@ bool matrix_multiply(void) {
     printf("\n");
   }
   printf("\n");
-  matrixMult(answer.begin(), A.data(), B.data(), 4, 4, 4);
+  matrixMult(answer.begin(), A.data(), B.data(), m, k, n);
   for (int a = 0; a < 16; ++a) {
     if (answer[a] != cfu_result[a]) {
+      printf("index %d should be %ld instead of %ld\n", a, answer[a], cfu_result[a]);
       return false;
     } else if (a == 15) {
       return true;

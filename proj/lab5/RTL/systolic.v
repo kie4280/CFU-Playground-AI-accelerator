@@ -1,8 +1,8 @@
 module SystolicArray(
   input wire         clk,
-  input wire [7:0]   M,
-  input wire [7:0]   N,
-  input wire [7:0]   K,
+  input wire [15:0]  M,
+  input wire [15:0]  N,
+  input wire [15:0]  K,
   output reg [15:0]  A_index,
   input wire [31:0]  A_data,
   output reg [15:0]  B_index,

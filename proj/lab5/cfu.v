@@ -47,9 +47,9 @@ module Cfu (
   wire [127:0]    C_data_in;
 
   reg             in_valid = 0;
-  wire [7:0]      M;
-  wire [7:0]      K;
-  wire [7:0]      N;
+  wire [15:0]     M;
+  wire [15:0]     K;
+  wire [15:0]     N;
   wire            busy;
 
   reg  [15:0]     A_index_CFU = 0;
