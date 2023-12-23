@@ -17,7 +17,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 module Cfu (
   input               cmd_valid,
   output              cmd_ready,
@@ -30,6 +29,8 @@ module Cfu (
   input               reset,
   input               clk
 );
+
+  wire            batch_mode;
 
   reg             A_wr_en = 0;
   wire [15:0]     A_index_w;
@@ -84,12 +85,12 @@ module Cfu (
 
   global_buffer #(
       .ADDR_BITS(14),
-      .DATA_BITS(32)
+      .DATA_BITS(8)
   )
   gbuff_A(
       .clk(clk),
-      .rst(reset),
       .wr_en(A_wr_en),
+      .batch_mode(batch_mode),
       .index(A_index_w),
       .data_in(A_data_in),
       .data_out(A_data_out)
@@ -97,11 +98,11 @@ module Cfu (
 
   global_buffer #(
       .ADDR_BITS(14),
-      .DATA_BITS(32)
+      .DATA_BITS(8)
   ) gbuff_B(
       .clk(clk),
-      .rst(reset),
       .wr_en(B_wr_en),
+      .batch_mode(batch_mode),
       .index(B_index_w),
       .data_in(B_data_in),
       .data_out(B_data_out)
@@ -110,11 +111,11 @@ module Cfu (
 
   global_buffer #(
       .ADDR_BITS(12),
-      .DATA_BITS(128)
+      .DATA_BITS(32)
   ) gbuff_C(
       .clk(clk),
-      .rst(reset),
       .wr_en(C_wr_en),
+      .batch_mode(batch_mode),
       .index(C_index_w),
       .data_in(C_data_in),
       .data_out(C_data_out)
@@ -135,6 +136,8 @@ module Cfu (
   assign funct_id = cmd_valid ? cmd_payload_function_id[9:3] : funct_id_reg;
   assign cmd_inputs_0 = cmd_valid ? cmd_payload_inputs_0 : cmd_inputs_0_reg;
   assign cmd_inputs_1 = cmd_valid ? cmd_payload_inputs_1 : cmd_inputs_1_reg;
+  assign batch_mode = (cur_state == STATE_EXEC);
+  
 
   always @(posedge clk, posedge reset) begin
     if (reset) begin
@@ -147,20 +150,29 @@ module Cfu (
       funct_id_reg <= cmd_payload_function_id[9:3];
       opcode_reg <= cmd_payload_function_id[2:0];
     end
+    else if(cur_state == STATE_RSP_READY) begin
+      cmd_inputs_0_reg <= 0;
+      cmd_inputs_1_reg <= 0;
+      funct_id_reg <= 0;
+      opcode_reg <= OP_NOOP;
+
+    end
   end
-
-
 
   localparam STATE_IDLE = 0;
   localparam STATE_EXEC = 1;
   localparam STATE_READ_MEM = 2;
   localparam STATE_RSP_READY = 7;
 
-  localparam OP_RESET = 0;
+  localparam OP_NOOP = 0;
   localparam OP_WRITE_MEM = 1;
   localparam OP_COMPUTE = 2;
   localparam OP_READ_MEM = 3;
+  localparam OP_RESET = 4;
   localparam OP_DEBUG_OUT = 7;
+
+  localparam DEBUG_READ_A = 0;
+  localparam DEBUG_READ_B = 1;
 
   reg [2:0] cur_state = STATE_IDLE;
   reg [2:0] next_state = STATE_IDLE;
@@ -214,18 +226,18 @@ module Cfu (
 
   always @(*) begin
     if (opcode == OP_READ_MEM) begin
-      rsp_payload_outputs_0 = C_data_out[cmd_inputs_0[1:0] * 32 +: 32];
+      rsp_payload_outputs_0 = C_data_out[31:0];
     end
     else if (opcode == OP_DEBUG_OUT) begin
-      if (funct_id == 0) rsp_payload_outputs_0 = A_data_out;
-      else if (funct_id == 1) rsp_payload_outputs_0 = B_data_out;
-      else rsp_payload_outputs_0 = 0;
+      if (funct_id == DEBUG_READ_A) rsp_payload_outputs_0 = A_data_out;
+      else if (funct_id == DEBUG_READ_B) rsp_payload_outputs_0 = B_data_out;
+      else rsp_payload_outputs_0 = 300 + opcode;
     end
   else if (opcode == OP_COMPUTE) begin
     rsp_payload_outputs_0 = counter;
   end
     else begin
-      rsp_payload_outputs_0 = 300+opcode;
+      rsp_payload_outputs_0 = 0;
     end
   end
 
@@ -265,7 +277,7 @@ module Cfu (
   always @(*) begin
     A_index_CFU = cmd_inputs_0[15:0];
     B_index_CFU = cmd_inputs_0[15:0];
-    C_index_CFU = cmd_inputs_0[15:2];
+    C_index_CFU = cmd_inputs_0[15:0];
   end
 
 

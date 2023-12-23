@@ -28,7 +28,7 @@
 namespace {
 
 // matrix multiply with matrix B
-void matrixMult(int32_t* out, int32_t* A, int32_t* B, int m, int k, int n) {
+void matrixMult(uint32_t* out, uint32_t* A, uint32_t* B, int m, int k, int n) {
   for (int a = 0; a < m; ++a) {
     for (int b = 0; b < n; ++b) {
       const int o_idx = a * n + b;
@@ -80,7 +80,7 @@ void read_mat(void) {
   }
   printf("\nread the matrix C\n");
   for (int a = 0; a < 20; ++a) {
-    r = cfu_op3(2, a, -1);
+    r = cfu_op3(2, a, 0);
     printf("%d ", r);
   }
 }
@@ -95,37 +95,70 @@ void compute(void) {
   printf("result: %d\n", r);
 }
 
+// inline size_t compute_offset(const int a, const int b, const int m, const int
+// k,
+//                     const int n, const int a_or_b = 0) {
+//   printf("%ld", sizeof(int));
+//   if (a_or_b == 0) {
+
+//   } else if (a_or_b == 1) {
+
+//   }
+//   return -1;
+// }
+
 bool matrix_multiply(void) {
-  int r = cfu_op0(0, 0, 0);  // reset the cfu
-  const int m = 4, k = 6, n = 4;
-  std::array<int32_t, m*k> A;
-  std::array<int32_t, k*n> B;
-  std::array<int32_t, m*n> answer;
-  std::array<int32_t, m*n> cfu_result;
-  for (int a = 0; a < m*k; ++a) {
-    // A[a] = std::rand() % 255;
-    A[a] = a;
+  int r = cfu_op4(0, 0, 0);  // reset the cfu
+  const int m = 6, k = 40, n = 6;
+  std::array<uint32_t, m* k> A = {0};
+  std::array<uint32_t, k* n> B = {0};
+  std::array<uint32_t, m* n> answer = {0};
+  std::array<uint32_t, m* n> cfu_result = {0};
+
+  for (int a = 0; a < m * k; ++a) {
+    A[a] = std::rand() % 255;
+    // A[a] = a;
   }
-  for (int a=0; a<k*n; ++a) {
-    // B[a] = std::rand() % 255;
-    B[a] = a;
+  for (int a = 0; a < k * n; ++a) {
+    B[a] = std::rand() % 255;
+    // B[a] = a;
   }
-  for (int i = 0; i < k; ++i) {
-    uint32_t a4 = 0;
-    for (int j = 0; j < m; ++j) {
-      a4 += A[k * j + i] << (j << 3);
+  // load A
+  int a_counter = 0;
+  for (int v = 0; v < (m + 3) / 4; ++v) {
+    for (int i = 0; i < k; ++i) {
+      for (int j = 0; j < 4; ++j) {
+        const int row = (4 * v + j);
+        int val;
+        if (row >= m) {
+          val = 0;
+        } else {
+          val = A[row * k + i];
+        }
+        cfu_op1(0, a_counter++, val);
+      }
     }
-    cfu_op1(0, i, a4);
   }
-  for (int i = 0; i < k; ++i) {
-    uint32_t b4 = 0;
-    for (int j = 0; j < n; ++j) {
-      b4 += B[n * i + j] << (j << 3);
+  // load B
+  int b_counter = 0;
+  for (int v = 0; v < (n + 3) / 4; ++v) {
+    for (int i = 0; i < k; ++i) {
+      for (int j = 0; j < 4; ++j) {
+        const int col = (4 * v + j);
+        int val;
+        if (col >= n) {
+          val = 0;
+        } else {
+          val = B[i * n + col];
+        }
+        cfu_op1(1, b_counter++, val);
+      }
     }
-    cfu_op1(1, i, b4);
   }
+  // initiate compute
   r = cfu_op2(0, 4, (k << 16) + 4);
   printf("cycles: %d\n", r);
+  // read back value of C
   for (int a = 0; a < m; ++a) {
     for (int b = 0; b < n; ++b) {
       r = cfu_op3(0, a * 4 + b, 0);
@@ -135,10 +168,13 @@ bool matrix_multiply(void) {
     printf("\n");
   }
   printf("\n");
+  // matmul using software
   matrixMult(answer.begin(), A.data(), B.data(), m, k, n);
+  // matmul checking
   for (int a = 0; a < 16; ++a) {
     if (answer[a] != cfu_result[a]) {
-      printf("index %d should be %ld instead of %ld\n", a, answer[a], cfu_result[a]);
+      printf("index %d should be %ld instead of %ld\n", a, answer[a],
+             cfu_result[a]);
       return false;
     } else if (a == 15) {
       return true;

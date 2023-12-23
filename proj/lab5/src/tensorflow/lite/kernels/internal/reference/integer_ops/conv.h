@@ -22,6 +22,7 @@ limitations under the License.
 #include "playground_util/print_params.h"
 #include "tensorflow/lite/kernels/internal/common.h"
 #include "tensorflow/lite/kernels/internal/portable_tensor_utils.h"
+#include "cstdio"
 
 extern long long unsigned my_cycles;
 
@@ -115,6 +116,7 @@ inline void ConvPerChannel(
     // int input_w = filter_height * filter_width * filter_input_depth;
     int weight_h = output_depth;
     int weight_w = filter_height * filter_width * filter_input_depth;
+    printf("m k n, %d %d %d\n", weight_h, weight_w, input_h);
 
     // reorder inputs so that conv becomes matmul
     int input_counter = 0;
