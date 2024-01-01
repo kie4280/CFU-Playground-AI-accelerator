@@ -61,8 +61,8 @@ module Cfu (
   wire [15:0]     B_index_TPU;
   wire [15:0]     C_index_TPU;
 
-  assign M = cmd_inputs_0[15:0];
-  assign K = cmd_inputs_1[31:16];
+  assign K = cmd_inputs_0[15:0];
+  assign M = cmd_inputs_1[31:16];
   assign N = cmd_inputs_1[15:0];
 
   SystolicArray my_tpu(
@@ -138,6 +138,22 @@ module Cfu (
   assign cmd_inputs_1 = cmd_valid ? cmd_payload_inputs_1 : cmd_inputs_1_reg;
   assign batch_mode = (cur_state == STATE_EXEC);
   
+  localparam STATE_IDLE = 0;
+  localparam STATE_EXEC = 1;
+  localparam STATE_READ_MEM = 2;
+  localparam STATE_RSP_READY = 7;
+
+  localparam OP_NOOP = 0;
+  localparam OP_WRITE_MEM = 1;
+  localparam OP_COMPUTE = 2;
+  localparam OP_READ_MEM = 3;
+  localparam OP_DEBUG_OUT = 7;
+
+  localparam DEBUG_READ_A = 0;
+  localparam DEBUG_READ_B = 1;
+
+  reg [2:0] cur_state = STATE_IDLE;
+  reg [2:0] next_state = STATE_IDLE;
 
   always @(posedge clk, posedge reset) begin
     if (reset) begin
@@ -158,24 +174,6 @@ module Cfu (
 
     end
   end
-
-  localparam STATE_IDLE = 0;
-  localparam STATE_EXEC = 1;
-  localparam STATE_READ_MEM = 2;
-  localparam STATE_RSP_READY = 7;
-
-  localparam OP_NOOP = 0;
-  localparam OP_WRITE_MEM = 1;
-  localparam OP_COMPUTE = 2;
-  localparam OP_READ_MEM = 3;
-  localparam OP_RESET = 4;
-  localparam OP_DEBUG_OUT = 7;
-
-  localparam DEBUG_READ_A = 0;
-  localparam DEBUG_READ_B = 1;
-
-  reg [2:0] cur_state = STATE_IDLE;
-  reg [2:0] next_state = STATE_IDLE;
 
   always @(posedge clk, posedge reset) begin
     if (reset) begin
@@ -288,7 +286,7 @@ module Cfu (
   always @(posedge clk) begin
     case (cur_state)
       STATE_IDLE: begin
-        if (opcode == OP_RESET) begin
+        if (opcode == OP_NOOP && cmd_valid && funct_id == 0) begin
           counter <= 0;
         end
         else if (opcode == OP_COMPUTE && cmd_valid) begin

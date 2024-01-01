@@ -107,9 +107,16 @@ void compute(void) {
 //   return -1;
 // }
 
+template <int M, int K, int N>
+void cfu_mul(std::array<uint32_t, M * N>& C,
+             const std::array<uint32_t, M * K>& A,
+             const std::array<uint32_t, K * N>& B, int m, int k, int n) {
+
+}
+
 bool matrix_multiply(void) {
-  int r = cfu_op4(0, 0, 0);  // reset the cfu
-  const int m = 6, k = 40, n = 6;
+  int r = cfu_op0(0, 0, 0);  // reset the cfu
+  const int m = 1, k = 350, n = 1;
   std::array<uint32_t, m* k> A = {0};
   std::array<uint32_t, k* n> B = {0};
   std::array<uint32_t, m* n> answer = {0};
@@ -123,12 +130,16 @@ bool matrix_multiply(void) {
     B[a] = std::rand() % 255;
     // B[a] = a;
   }
-  // load A
-  int a_counter = 0;
-  for (int v = 0; v < (m + 3) / 4; ++v) {
+  const int m_blocks = (m + 3) / 4;
+  const int n_blocks = (n + 3) / 4;
+
+  for (int a = 0; a < m_blocks; ++a) {
+    // load A
+    int a_counter = 0;
+    int row_offset = 4 * a;
     for (int i = 0; i < k; ++i) {
       for (int j = 0; j < 4; ++j) {
-        const int row = (4 * v + j);
+        const int row = row_offset + j;
         int val;
         if (row >= m) {
           val = 0;
@@ -138,45 +149,98 @@ bool matrix_multiply(void) {
         cfu_op1(0, a_counter++, val);
       }
     }
-  }
-  // load B
-  int b_counter = 0;
-  for (int v = 0; v < (n + 3) / 4; ++v) {
-    for (int i = 0; i < k; ++i) {
-      for (int j = 0; j < 4; ++j) {
-        const int col = (4 * v + j);
-        int val;
-        if (col >= n) {
-          val = 0;
-        } else {
-          val = B[i * n + col];
+
+    for (int b = 0; b < n_blocks; ++b) {
+      // load B
+      int b_counter = 0;
+      int col_offset = 4 * b;
+      for (int i = 0; i < k; ++i) {
+        for (int j = 0; j < 4; ++j) {
+          const int col = (col_offset + j);
+          int val;
+          if (col >= n) {
+            val = 0;
+          } else {
+            val = B[i * n + col];
+          }
+          cfu_op1(1, b_counter++, val);
         }
-        cfu_op1(1, b_counter++, val);
       }
+
+      // start compute
+      r = cfu_op2(0, k, 0);
+      // retrieve C
+      int c_counter = 0;
+      for (int c_r = 0; c_r < 4; ++c_r) {
+        for (int c_c = 0; c_c < 4; ++c_c) {
+          uint32_t c = cfu_op3(0, c_counter++, 0);
+          if (row_offset + c_r < m && col_offset + c_c < n) {
+            cfu_result[(row_offset + c_r) * n + (col_offset + c_c)] = c;
+          }
+          printf("%lu ", c);
+        }
+        printf("\n");
+      }
+      printf("\n");
     }
   }
-  // initiate compute
-  r = cfu_op2(0, 4, (k << 16) + 4);
+
   printf("cycles: %d\n", r);
-  // read back value of C
-  for (int a = 0; a < m; ++a) {
-    for (int b = 0; b < n; ++b) {
-      r = cfu_op3(0, a * 4 + b, 0);
-      cfu_result[a * 4 + b] = r;
-      printf("%d ", r);
-    }
-    printf("\n");
-  }
-  printf("\n");
+  // load A
+  // int a_counter = 0;
+  // for (int v = 0; v < ; ++v) {
+  //   for (int i = 0; i < k; ++i) {
+  //     for (int j = 0; j < 4; ++j) {
+  //       const int row = (4 * v + j);
+  //       int val;
+  //       if (row >= m) {
+  //         val = 0;
+  //       } else {
+  //         val = A[row * k + i];
+  //       }
+  //       cfu_op1(0, a_counter++, val);
+  //     }
+  //   }
+  // }
+  // // load B
+  // int b_counter = 0;
+  // for (int v = 0; v < (n + 3) / 4; ++v) {
+  //   for (int i = 0; i < k; ++i) {
+  //     for (int j = 0; j < 4; ++j) {
+  //       const int col = (4 * v + j);
+  //       int val;
+  //       if (col >= n) {
+  //         val = 0;
+  //       } else {
+  //         val = B[i * n + col];
+  //       }
+  //       cfu_op1(1, b_counter++, val);
+  //     }
+  //   }
+  // }
+  // // initiate compute
+  // r = cfu_op2(0, 4, (k << 16) + 4);
+  // printf("cycles: %d\n", r);
+  // // read back value of C
+  // for (int a = 0; a < m; ++a) {
+  //   for (int b = 0; b < n; ++b) {
+  //     r = cfu_op3(0, a * 4 + b, 0);
+  //     cfu_result[a * 4 + b] = r;
+  //     printf("%d ", r);
+  //   }
+  //   printf("\n");
+  // }
+  // printf("\n");
+
   // matmul using software
   matrixMult(answer.begin(), A.data(), B.data(), m, k, n);
   // matmul checking
-  for (int a = 0; a < 16; ++a) {
+  for (int a = 0; a < m * n; ++a) {
     if (answer[a] != cfu_result[a]) {
       printf("index %d should be %ld instead of %ld\n", a, answer[a],
              cfu_result[a]);
       return false;
-    } else if (a == 15) {
+    } else if (a == m * n - 1) {
       return true;
     }
   }
