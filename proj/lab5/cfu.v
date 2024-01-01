@@ -47,11 +47,11 @@ module Cfu (
   wire [127:0]    C_data_out;
   wire [127:0]    C_data_in;
 
-  reg             in_valid = 0;
+  reg             TPU_enable = 0;
   wire [15:0]     M;
   wire [15:0]     K;
   wire [15:0]     N;
-  wire            busy;
+  wire            TPU_busy;
 
   reg  [15:0]     A_index_CFU = 0;
   reg  [15:0]     B_index_CFU = 0;
@@ -60,6 +60,8 @@ module Cfu (
   wire [15:0]     A_index_TPU;
   wire [15:0]     B_index_TPU;
   wire [15:0]     C_index_TPU;
+
+  wire            cmd_pulse;
 
   assign K = cmd_inputs_0[15:0];
   assign M = cmd_inputs_1[31:16];
@@ -70,8 +72,8 @@ module Cfu (
     .M(M),
     .K(K),
     .N(N),
-    .busy(busy),
-    .enable(in_valid),
+    .busy(TPU_busy),
+    .enable(TPU_enable),
     .A_index(A_index_TPU),
     .A_data(A_data_out),
     .B_index(B_index_TPU),
@@ -131,11 +133,12 @@ module Cfu (
   reg [6:0]  funct_id_reg = 0;
   reg [2:0]  opcode_reg = 0;
 
-  assign cmd_ready = (cur_state == STATE_IDLE);
-  assign opcode = cmd_valid ? cmd_payload_function_id[2:0] : opcode_reg;
-  assign funct_id = cmd_valid ? cmd_payload_function_id[9:3] : funct_id_reg;
-  assign cmd_inputs_0 = cmd_valid ? cmd_payload_inputs_0 : cmd_inputs_0_reg;
-  assign cmd_inputs_1 = cmd_valid ? cmd_payload_inputs_1 : cmd_inputs_1_reg;
+  assign cmd_ready = cur_state == STATE_IDLE;
+  assign cmd_pulse = (cmd_valid && cur_state == STATE_IDLE);
+  assign opcode =  cmd_pulse ? cmd_payload_function_id[2:0] : opcode_reg;
+  assign funct_id = cmd_pulse ? cmd_payload_function_id[9:3] : funct_id_reg;
+  assign cmd_inputs_0 = cmd_pulse ? cmd_payload_inputs_0 : cmd_inputs_0_reg;
+  assign cmd_inputs_1 = cmd_pulse ? cmd_payload_inputs_1 : cmd_inputs_1_reg;
   assign batch_mode = (cur_state == STATE_EXEC);
   
   localparam STATE_IDLE = 0;
@@ -160,7 +163,7 @@ module Cfu (
       cmd_inputs_0_reg <= 32'b0;
       cmd_inputs_1_reg <= 32'b0;
     end
-    else if (cmd_valid) begin
+    else if (cmd_pulse) begin
       cmd_inputs_0_reg <= cmd_payload_inputs_0;
       cmd_inputs_1_reg <= cmd_payload_inputs_1;
       funct_id_reg <= cmd_payload_function_id[9:3];
@@ -187,7 +190,7 @@ module Cfu (
   always @(*) begin
     case (cur_state)
       STATE_IDLE: begin
-        if (cmd_ready && cmd_valid) begin
+        if (cmd_valid) begin
           if (opcode == OP_COMPUTE) next_state = STATE_EXEC;
           else if (opcode == OP_READ_MEM || opcode == OP_DEBUG_OUT) next_state = STATE_READ_MEM;
           else next_state = STATE_RSP_READY;
@@ -197,7 +200,7 @@ module Cfu (
 
       end
       STATE_EXEC: begin
-        if (~busy) next_state = STATE_RSP_READY;
+        if (~TPU_busy) next_state = STATE_RSP_READY;
         else next_state = STATE_EXEC;
         rsp_valid = 0;
 
@@ -240,7 +243,7 @@ module Cfu (
   end
 
   always @(*) begin
-    if (cur_state == STATE_IDLE && opcode == OP_WRITE_MEM) begin
+    if (cur_state == STATE_IDLE && opcode == OP_WRITE_MEM && cmd_pulse) begin
       if (funct_id == 0) begin
         A_wr_en = 1;
         B_wr_en = 0;
@@ -290,12 +293,12 @@ module Cfu (
           counter <= 0;
         end
         else if (opcode == OP_COMPUTE && cmd_valid) begin
-          in_valid <= 1;
+          TPU_enable <= 1;
         end
 
       end
       STATE_EXEC: begin
-        in_valid <= 0;
+        TPU_enable <= 0;
 
         // for testing only
         counter <= counter + 1;
