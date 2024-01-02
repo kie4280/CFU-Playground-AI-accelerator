@@ -1,8 +1,7 @@
 module SystolicArray(
   input wire         clk,
-  input wire [15:0]  M,
-  input wire [15:0]  N,
   input wire [15:0]  K,
+  input [31:0]       B_offset,
   output reg [15:0]  A_index,
   input wire [31:0]  A_data,
   output reg [15:0]  B_index,
@@ -42,6 +41,7 @@ genvar gi, gj;
         clk,
         PE_clear, 
         PE_enable,
+        B_offset,
         inter_col[gi][gj],
         inter_row[gi][gj],
         inter_col[gi][gj+1],
@@ -191,18 +191,19 @@ endmodule
 
 
 module PE(
-  input clk,
-  input clear,
-  input enable,
-  input [7:0] left,
-  input [7:0] top,
-  output reg [7:0] right,
-  output reg [7:0] bottom,
-  output reg [31:0] result
+  input wire clk,
+  input wire clear,
+  input wire enable,
+  input wire signed [31:0] B_offset,
+  input wire signed [7:0] left,
+  input wire signed [7:0] top,
+  output reg signed [7:0] right,
+  output reg signed [7:0] bottom,
+  output reg signed [31:0] result
 ); 
 
-wire [31:0] mul;
-assign mul = left * top;
+wire signed [31:0] mul;
+assign mul = left * (top + B_offset);
 
 always @(posedge clk) begin
   if (clear == 1) begin

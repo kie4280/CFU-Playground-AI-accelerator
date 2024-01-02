@@ -28,15 +28,15 @@
 namespace {
 
 // matrix multiply with matrix B
-void matrixMult(uint32_t* out, uint32_t* A, uint32_t* B, int m, int k, int n) {
+void matrixMult(uint32_t* out, uint32_t* A, uint32_t* BT, int m, int k, int n) {
   for (int a = 0; a < m; ++a) {
     for (int b = 0; b < n; ++b) {
       const int o_idx = a * n + b;
       out[o_idx] = 0;
       for (int c = 0; c < k; ++c) {
         const int a_idx = a * k + c;
-        const int b_idx = c * n + b;
-        out[o_idx] += A[a_idx] * B[b_idx];
+        const int b_idx = b * k + c;
+        out[o_idx] += A[a_idx] * BT[b_idx];
       }
     }
   }
@@ -138,12 +138,12 @@ int cfu_mul(std::array<uint32_t, max_M * max_N>& C,
       int col_offset = 4 * b;
       for (int i = 0; i < k; ++i) {
         for (int j = 0; j < 4; ++j) {
-          const int col = (col_offset + j);
+          const int row = col_offset + j;
           int val;
-          if (col >= n) {
+          if (row >= n) {
             val = 0;
           } else {
-            val = B[i * n + col];
+            val = B[row * k + i];
           }
           cfu_op1(1, b_counter++, val);
         }
@@ -151,42 +151,40 @@ int cfu_mul(std::array<uint32_t, max_M * max_N>& C,
 
       // start compute
       r = cfu_op2(0, k, 0);
-      int c;
       // retrieve C
       int c_counter = 0;
       for (int c_r = 0; c_r < 4; ++c_r) {
         for (int c_c = 0; c_c < 4; ++c_c) {
-          c = cfu_op3(0, c_counter++, 0);
+          int32_t c = cfu_op3(0, c_counter++, 0);
           const int row = row_offset + c_r;
           const int col = col_offset + c_c;
-          // printf("%d, %d\n", row, col);
           if (row < m && col < n) {
-            C[0] = c;
+            C[row * n + col] = c;
           }
           // printf("%d ", c);
         }
         // printf("\n");
       }
-      printf("\n");
+      // printf("\n");
     }
   }
   return r;
 }
 
 bool matrix_multiply(void) {
-  const int m = 1, k = 4, n = 1;
+  const int m = 16, k = 8, n = 2304;
   std::array<uint32_t, m* k> A = {0};
   std::array<uint32_t, k* n> B = {0};
   std::array<uint32_t, m* n> answer = {0};
   std::array<uint32_t, m* n> cfu_result = {0};
 
   for (int a = 0; a < m * k; ++a) {
-    // A[a] = std::rand() % 255;
-    A[a] = a;
+    A[a] = std::rand() % 255;
+    // A[a] = a;
   }
   for (int a = 0; a < k * n; ++a) {
-    // B[a] = std::rand() % 255;
-    B[a] = a;
+    B[a] = std::rand() % 255;
+    // B[a] = a;
   }
 
   int r = cfu_mul<m, k, n>(cfu_result, A, B, m, k, n);

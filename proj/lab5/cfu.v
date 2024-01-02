@@ -48,9 +48,7 @@ module Cfu (
   wire [127:0]    C_data_in;
 
   reg             TPU_enable = 0;
-  wire [15:0]     M;
   wire [15:0]     K;
-  wire [15:0]     N;
   wire            TPU_busy;
 
   reg  [15:0]     A_index_CFU = 0;
@@ -62,26 +60,24 @@ module Cfu (
   wire [15:0]     C_index_TPU;
 
   wire            cmd_pulse;
+  wire signed [31:0] B_offset;
 
   assign K = cmd_inputs_0[15:0];
-  assign M = cmd_inputs_1[31:16];
-  assign N = cmd_inputs_1[15:0];
+  assign B_offset = cmd_inputs_1;
 
   SystolicArray my_tpu(
     .clk(clk),
-    .M(M),
     .K(K),
-    .N(N),
-    .busy(TPU_busy),
-    .enable(TPU_enable),
+    .B_offset(B_offset),
     .A_index(A_index_TPU),
     .A_data(A_data_out),
     .B_index(B_index_TPU),
     .B_data(B_data_out),
-    .C_wr_en(C_wr_en),
     .C_index(C_index_TPU),
-    .C_data_out(C_data_in)
-
+    .C_data_out(C_data_in),
+    .C_wr_en(C_wr_en),
+    .enable(TPU_enable),
+    .busy(TPU_busy)
   );
 
 
@@ -302,13 +298,12 @@ module Cfu (
 
         // for testing only
         counter <= counter + 1;
-
       end
       STATE_READ_MEM: begin
         // nothing... waiting for data
       end
       STATE_RSP_READY: begin
-
+        // waiting for CPU to accept data
       end
 
       default:;

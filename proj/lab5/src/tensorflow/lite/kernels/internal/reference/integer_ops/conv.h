@@ -16,13 +16,16 @@ limitations under the License.
 #define TENSORFLOW_LITE_KERNELS_INTERNAL_REFERENCE_INTEGER_OPS_CONV_H_
 
 #include <algorithm>
+#include <array>
+#include <cstdint>
 
+#include "cfu.h"
+#include "cstdio"
 #include "models/my_cycles.h"
 #include "perf.h"
 #include "playground_util/print_params.h"
 #include "tensorflow/lite/kernels/internal/common.h"
 #include "tensorflow/lite/kernels/internal/portable_tensor_utils.h"
-#include "cstdio"
 
 extern long long unsigned my_cycles;
 
@@ -30,18 +33,85 @@ namespace tflite {
 namespace reference_integer_ops {
 
 // matrix multiply with matrix B in transposed form
-void matrixMult(int32_t* out, int32_t* A, int32_t* BT, int m, int k, int n) {
+template <int max_M, int max_K, int max_N>
+int matrixMult(std::array<int32_t, max_M * max_N>& C,
+               const std::array<int32_t, max_M * max_K>& A,
+               const std::array<int32_t, max_K * max_N>& BT, int m, int k,
+               int n) {
   for (int a = 0; a < m; ++a) {
     for (int b = 0; b < n; ++b) {
       const int o_idx = a * n + b;
-      out[o_idx] = 0;
+      C[o_idx] = 0;
       for (int c = 0; c < k; ++c) {
         const int a_idx = a * k + c;
         const int b_idx = b * k + c;
-        out[o_idx] += A[a_idx] * BT[b_idx];
+        C[o_idx] += A[a_idx] * BT[b_idx];
       }
     }
   }
+  return 0;
+}
+
+// cfu matrix multiply with matrix B in transposed form
+template <int max_M, int max_K, int max_N>
+int cfu_mul(std::array<int32_t, max_M * max_N>& C,
+            const std::array<int8_t, max_M * max_K>& A,
+            const std::array<int8_t, max_K * max_N>& BT, int m, int k, int n, int32_t B_offset) {
+  const int m_blocks = (m + 3) / 4;
+  const int n_blocks = (n + 3) / 4;
+  int r = cfu_op0(0, 0, 0);  // reset the cfu
+
+  for (int a = 0; a < m_blocks; ++a) {
+    // load A
+    int a_counter = 0;
+    int row_offset = 4 * a;
+    for (int i = 0; i < k; ++i) {
+      for (int j = 0; j < 4; ++j) {
+        const int row = row_offset + j;
+        int val;
+        if (row >= m) {
+          val = 0;
+        } else {
+          val = A[row * k + i];
+        }
+        cfu_op1(0, a_counter++, val);
+      }
+    }
+
+    for (int b = 0; b < n_blocks; ++b) {
+      // load B
+      int b_counter = 0;
+      const int col_offset = 4 * b;
+      for (int i = 0; i < k; ++i) {
+        for (int j = 0; j < 4; ++j) {
+          const int row = col_offset + j;
+          int val;
+          if (row >= n) {
+            val = 0;
+          } else {
+            val = BT[row * k + i];
+          }
+          cfu_op1(1, b_counter++, val);
+        }
+      }
+
+      // start compute
+      r = cfu_op2(0, k, B_offset);
+      // retrieve C
+      int c_counter = 0;
+      for (int c_r = 0; c_r < 4; ++c_r) {
+        for (int c_c = 0; c_c < 4; ++c_c) {
+          int32_t c = cfu_op3(0, c_counter++, 0);
+          const int row = row_offset + c_r;
+          const int col = col_offset + c_c;
+          if (row < m && col < n) {
+            C[row * n + col] = c;
+          }
+        }
+      }
+    }
+  }
+  return r;
 }
 
 // Fixed-point per-channel-quantization convolution reference kernel.
@@ -108,15 +178,22 @@ inline void ConvPerChannel(
   // const int filters_per_group = output_depth / groups;
   const int output_height = output_shape.Dims(1);
   const int output_width = output_shape.Dims(2);
+  const int MAX_M = 400;
+  const int MAX_K = 900;
+  const int MAX_N = 3600;
+
   for (int batch = 0; batch < batches; ++batch) {
-    int32_t unrolled_input[100 * 100 * 400];
-    int32_t unrolled_output[100 * 100 * 400];
-    int32_t unrolled_weight[60 * 60 * 400];
-    int input_h = output_height * output_width;
-    // int input_w = filter_height * filter_width * filter_input_depth;
-    int weight_h = output_depth;
-    int weight_w = filter_height * filter_width * filter_input_depth;
+    // im2col buffers
+    std::array<int32_t, MAX_M * MAX_N> unrolled_output;
+    std::array<int8_t, MAX_M * MAX_K> unrolled_weight;
+    std::array<int8_t, MAX_K * MAX_N> unrolled_input;
+
+    int weight_h = output_depth;                                       // M
+    int weight_w = filter_height * filter_width * filter_input_depth;  // K
+    int input_h = output_height * output_width;                        // N
+
     printf("m k n, %d %d %d\n", weight_h, weight_w, input_h);
+    printf("input offset %ld\n", input_offset);
 
     // reorder inputs so that conv becomes matmul
     int input_counter = 0;
@@ -141,11 +218,10 @@ inline void ConvPerChannel(
 
             for (int in_channel = 0; in_channel < filter_input_depth;
                  ++in_channel) {
-              int32_t input_val = 0;
+              int8_t input_val = 0;
               if (is_point_inside_image) {
                 input_val = input_data[Offset(input_shape, batch, in_y, in_x,
-                                              in_channel)] +
-                            input_offset;
+                                              in_channel)];
               }
               unrolled_input[input_counter++] = input_val;
             }
@@ -163,7 +239,7 @@ inline void ConvPerChannel(
         for (int filter_x = 0; filter_x < filter_width; ++filter_x) {
           for (int in_channel = 0; in_channel < filter_input_depth;
                ++in_channel) {
-            int32_t filter_val = filter_data[Offset(
+            int8_t filter_val = filter_data[Offset(
                 filter_shape, out_channel, filter_y, filter_x, in_channel)];
             unrolled_weight[weight_counter++] = filter_val;
           }
@@ -173,8 +249,10 @@ inline void ConvPerChannel(
 
     unsigned my_start = perf_get_mcycle();
     // doing the conv using matrix multiply
-    matrixMult(unrolled_output, unrolled_weight, unrolled_input, weight_h,
-               weight_w, input_h);
+    // matrixMult<MAX_M, MAX_K, MAX_N>(unrolled_output, unrolled_weight, unrolled_input, weight_h,
+    //            weight_w, input_h);
+    cfu_mul<MAX_M, MAX_K, MAX_N>(unrolled_output, unrolled_weight,
+                                 unrolled_input, weight_h, weight_w, input_h, input_offset);
     unsigned my_finish = perf_get_mcycle();
     my_cycles += (my_finish - my_start);
 
